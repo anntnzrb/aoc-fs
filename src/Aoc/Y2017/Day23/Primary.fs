@@ -1,7 +1,7 @@
 // approach: interpret part 1; replace a verified nested factor-search loop with trial division for part 2
 // cost: O(n log(l+2)+t+(s+k) log(l+2)+k sqrt(b)) time: n instructions, l recognized loops, t/s literal steps, k accelerated loops bounded by b
 // cost: O(n+l) memory, one parse pass and six buffered passes
-// trade: local machine state stays literal except for a structurally checked loop; no input constants are embedded
+// trade: immutable eight-register snapshots keep execution literal except for a structurally checked loop; no input constants are embedded
 module Aoc.Y2017.Day23.Primary
 
 open Aoc.Solution
@@ -100,67 +100,61 @@ let private composite number =
     |> Seq.exists (fun divisor -> number % divisor = 0L)
 
 let private execute initialA loops (program: Instruction array) =
-    let registers = Array.zeroCreate<int64> 8
-    registers[index A] <- initialA
+    let rec loop position (registers: int64 array) multiplications =
+        let value =
+            function
+            | Literal number -> number
+            | Read register -> registers[index register]
 
-    let value =
-        function
-        | Literal number -> number
-        | Read register -> registers[index register]
+        let update operation register source =
+            let target = index register
+            let result = operation (bigint registers[target]) (bigint (value source))
 
-    let mutable position = 0L
-    let mutable multiplications = 0L
-    let mutable error = None
-
-    let update operation register source =
-        let target = index register
-        let result = operation (bigint registers[target]) (bigint (value source))
-
-        if result < bigint System.Int64.MinValue || result > bigint System.Int64.MaxValue then
-            error <- Some "register overflow"
-        else
-            registers[target] <- int64 result
-
-    while position >= 0L && position < int64 program.Length && Option.isNone error do
-        match Map.tryFind (int position) loops with
-        | Some loop ->
-            let number = registers[loop.Bound]
-            // The literal loop multiplies factors up to number-1; accelerate only when every product fits.
-            let squareFits =
-                number >= 3L && number - 1L <= System.Int64.MaxValue / (number - 1L)
-
-            if number < 3L then
-                error <- Some "factor-loop bound must exceed two for termination"
-            elif not squareFits then
-                error <- Some "factor-loop products exceed the integer range"
+            if result < bigint System.Int64.MinValue || result > bigint System.Int64.MaxValue then
+                Error "register overflow"
             else
-                if composite number then
-                    registers[loop.Flag] <- 0L
+                Ok(Array.updateAt target (int64 result) registers)
 
-                registers[loop.LeftFactor] <- number
-                registers[loop.RightFactor] <- number
-                registers[loop.Product] <- 0L
-                position <- position + 15L
-        | None ->
-            let offset =
+        if position < 0L || position >= int64 program.Length then
+            Ok(multiplications, registers[index H])
+        else
+            match Map.tryFind (int position) loops with
+            | Some factorLoop ->
+                let number = registers[factorLoop.Bound]
+                // The literal loop multiplies factors up to number-1; accelerate only when every product fits.
+                let squareFits =
+                    number >= 3L && number - 1L <= System.Int64.MaxValue / (number - 1L)
+
+                if number < 3L then
+                    Error "factor-loop bound must exceed two for termination"
+                elif not squareFits then
+                    Error "factor-loop products exceed the integer range"
+                else
+                    let nextRegisters =
+                        registers
+                        |> Array.updateAt factorLoop.Flag (if composite number then 0L else registers[factorLoop.Flag])
+                        |> Array.updateAt factorLoop.LeftFactor number
+                        |> Array.updateAt factorLoop.RightFactor number
+                        |> Array.updateAt factorLoop.Product 0L
+
+                    loop (position + 15L) nextRegisters multiplications
+            | None ->
                 match program[int position] with
                 | Set(register, source) ->
-                    registers[index register] <- value source
-                    1L
+                    loop (position + 1L) (Array.updateAt (index register) (value source) registers) multiplications
                 | Sub(register, source) ->
-                    update (-) register source
-                    1L
+                    match update (-) register source with
+                    | Error message -> Error message
+                    | Ok nextRegisters -> loop (position + 1L) nextRegisters multiplications
                 | Mul(register, source) ->
-                    update (*) register source
-                    multiplications <- multiplications + 1L
-                    1L
-                | Jump(condition, distance) -> if value condition <> 0L then value distance else 1L
+                    match update (*) register source with
+                    | Error message -> Error message
+                    | Ok nextRegisters -> loop (position + 1L) nextRegisters (multiplications + 1L)
+                | Jump(condition, distance) ->
+                    let offset = if value condition <> 0L then value distance else 1L
+                    loop (position + offset) registers multiplications
 
-            position <- position + offset
-
-    match error with
-    | Some message -> Error message
-    | None -> Ok(multiplications, registers[index H])
+    loop 0L (Array.init 8 (fun register -> if register = index A then initialA else 0L)) 0L
 
 let solve: Solver =
     fun input ->
