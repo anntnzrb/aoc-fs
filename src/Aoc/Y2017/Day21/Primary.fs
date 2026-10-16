@@ -5,6 +5,7 @@ module Aoc.Y2017.Day21.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day21.Input
+open FsToolkit.ErrorHandling
 
 let private grid (rows: string list) =
     let rows = rows |> List.toArray
@@ -55,9 +56,9 @@ let private enhance (lookup: Map<int * int, bool[,]>) (image: bool[,]) =
             for x in 0 .. blocks - 1 -> y, x
     ]
     |> Aoc.Parse.traverse (fun (y, x) ->
-        match lookup |> Map.tryFind (key block (y * block) (x * block) image) with
-        | None -> Error "no enhancement rule matches a block"
-        | Some target -> Ok target)
+        lookup
+        |> Map.tryFind (key block (y * block) (x * block) image)
+        |> Result.requireSome "no enhancement rule matches a block")
     |> Result.map (fun targets ->
         let targets = targets |> List.toArray
         let expanded = block + 1
@@ -72,9 +73,8 @@ let private count image =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun rules ->
+        result {
+            let! rules = Input.parse input
             let lookup = index rules
             let start = grid [ ".#."; "..#"; "###" ]
             let part1Iterations = 5
@@ -85,7 +85,7 @@ let solve: Solver =
                 |> Seq.scan (fun image _ -> image |> Result.bind (enhance lookup)) (Ok start)
                 |> Seq.toArray
 
-            images[part1Iterations]
-            |> Result.bind (fun part1 ->
-                images[part2Iterations]
-                |> Result.map (fun part2 -> Answers.both (count part1 |> string) (count part2 |> string))))
+            let! part1 = images[part1Iterations]
+            let! part2 = images[part2Iterations]
+            return Answers.both (count part1 |> string) (count part2 |> string)
+        }

@@ -1,6 +1,8 @@
 /// Domain model and parser for square-pixel enhancement rules.
 module Aoc.Y2017.Day21.Input
 
+open FsToolkit.ErrorHandling
+
 /// One enhancement rule, with top-down rows and a target one pixel wider.
 type Rule =
     {
@@ -25,14 +27,15 @@ let parse (input: string) : Result<Rule list, string> =
     let rule (line: string) =
         match line.Split(" => ") with
         | [| source; target |] ->
-            pattern source
-            |> Result.bind (fun source ->
-                pattern target
-                |> Result.bind (fun target ->
-                    match source.Length, target.Length with
-                    | 2, 3
-                    | 3, 4 -> Ok { Source = source; Target = target }
-                    | _ -> Error "expected a 2-to-3 or 3-to-4 enhancement"))
+            result {
+                let! source = pattern source
+                let! target = pattern target
+
+                match source.Length, target.Length with
+                | 2, 3
+                | 3, 4 -> return { Source = source; Target = target }
+                | _ -> return! Error "expected a 2-to-3 or 3-to-4 enhancement"
+            }
         | _ -> Error "expected source => target"
 
     input.Trim().Split('\n') |> Aoc.Parse.traverse (fun line -> rule (line.Trim()))
