@@ -1,4 +1,4 @@
-// approach: walk from the top entrance, preserving direction at crossings and collecting letters in encounter order
+// approach: walk from the top entrance, preserving direction at crossings and collecting letters and counting every visited cell
 // cost: O(n + s) time, O(n + l) memory for n input characters, s visited cells and l letters; line splitting and character validation passes, then one path traversal
 // trade: indexed rows preserve diagram geometry without building a graph; a lazy unfold carries only position and heading
 module Aoc.Y2017.Day19.Primary
@@ -6,7 +6,7 @@ module Aoc.Y2017.Day19.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day19.Input
 
-let private letters diagram =
+let private walk diagram =
     let rows = diagram.Rows |> List.toArray
 
     let cell (x, y) =
@@ -31,12 +31,22 @@ let private letters diagram =
 
                 Some(c, (advance position heading, heading)))
         ((diagram.Entrance, 0), (0, 1))
-    |> Seq.filter System.Char.IsAsciiLetterUpper
-    |> Seq.toArray
-    |> System.String
+    |> Seq.fold
+        (fun (letters, steps) c ->
+            let letters =
+                if System.Char.IsAsciiLetterUpper c then
+                    c :: letters
+                else
+                    letters
+
+            letters, steps + 1)
+        ([], 0)
+    |> fun (letters, steps) -> (letters |> List.rev |> List.toArray |> System.String), steps
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun diagram -> Answers.both (letters diagram) "0")
+        |> Result.map (fun diagram ->
+            let letters, steps = walk diagram
+            Answers.both letters (string steps))
