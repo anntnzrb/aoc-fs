@@ -5,6 +5,7 @@ module Aoc.Y2017.Day13.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day13.Input
+open FsToolkit.ErrorHandling
 
 let solve: Solver =
     fun input ->
@@ -39,6 +40,5 @@ let solve: Solver =
                 |> Seq.tryFind (fun delay ->
                     timings
                     |> List.forall (fun (depth, _, period) -> (delay + depth) % period <> 0I))
-                |> function
-                    | Some delay -> Ok(Answers.both (string severity) (string delay))
-                    | None -> Error "no delay passes the firewall")
+                |> Result.requireSome "no delay passes the firewall"
+                |> Result.map (fun delay -> Answers.both (string severity) (string delay)))
