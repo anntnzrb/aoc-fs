@@ -5,6 +5,7 @@
   <ItemGroup>
     <Compile Include="Calendar.fs" />
     <Compile Include="Solution.fs" />
+    <Compile Include="KnotHash.fs" />
     <!-- Each day's files (Input.fs, Primary.fs, explorations) go under Y<YEAR>/Day<DD>/ before that year's Registry.fs; a new year's Registry.fs goes before the root Registry.fs. -->
     <Compile Include="Y2017/Day01/Input.fs" />
     <Compile Include="Y2017/Day01/Primary.fs" />
