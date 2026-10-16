@@ -1,6 +1,6 @@
-// approach: fold the recorded rotations, position swaps and name swaps over the initial lineup
-// cost: O(m*n) time, O(m+n) memory for m moves and n=16 programs; one input pass
-// trade: fresh arrays keep each move explicit and the dance a pure transformation
+// approach: separate commuting position and name permutations, then square each to repeat the dance
+// cost: O(m*n+n*log k) time, O(m+n) memory; one input pass and three move-list passes
+// trade: permutation powers avoid replaying k dances or storing a history; n=16 and k=one billion
 module Aoc.Y2017.Day16.Primary
 
 open Aoc.Solution
@@ -28,10 +28,42 @@ let private dance moves lineup =
                     else name))
         lineup
 
+let private power count (permutation: char array) =
+    let mutable remaining = count
+    let mutable result = [| 'a' .. 'p' |]
+    let mutable squared = permutation
+
+    while remaining > 0 do
+        if remaining % 2 = 1 then
+            result <- result |> Array.map (fun name -> squared[int name - int 'a'])
+
+        squared <- squared |> Array.map (fun name -> squared[int name - int 'a'])
+        remaining <- remaining / 2
+
+    result
+
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
         |> Result.map (fun moves ->
-            let programs = [| 'a' .. 'p' |] |> dance moves |> System.String
-            Answers.both programs "0")
+            let initial = [| 'a' .. 'p' |]
+            let first = initial |> dance moves |> System.String
+
+            // Renaming commutes with moving positions, so the two permutations can be powered separately.
+            let positions, names =
+                moves
+                |> List.partition (function
+                    | Partner _ -> false
+                    | Spin _
+                    | Exchange _ -> true)
+
+            let positionPower = initial |> dance positions |> power 1000000000
+            let namePower = initial |> dance names |> power 1000000000
+
+            let billionth =
+                positionPower
+                |> Array.map (fun name -> namePower[int name - int 'a'])
+                |> System.String
+
+            Answers.both first billionth)
