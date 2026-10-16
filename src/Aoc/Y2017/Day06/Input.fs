@@ -12,12 +12,8 @@ let private blocks (token: string) =
 /// Parses whitespace-separated counts; rejects empty input and invalid counts.
 let parse (input: string) : Result<Banks, string> =
     input.Split([| ' '; '\t'; '\r'; '\n' |], System.StringSplitOptions.RemoveEmptyEntries)
-    |> Array.fold
-        (fun counts token ->
-            counts
-            |> Result.bind (fun counts -> blocks token |> Result.map (fun count -> count :: counts)))
-        (Ok [])
+    |> Aoc.Parse.traverse blocks
     |> Result.bind (fun counts ->
-        match List.rev counts with
+        match counts with
         | [] -> Error "empty bank sequence"
         | first :: rest -> Ok(Banks(first, rest)))
