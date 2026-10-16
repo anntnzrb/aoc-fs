@@ -14,11 +14,11 @@ let private difference (Row(first, rest)) =
     largest - smallest
 
 let private divisionSum (Row(first, rest)) =
+    let exact a b =
+        if b <> 0I && a % b = 0I then Some(a / b) else None
+
     let quotient a b =
-        match a, b with
-        | a, b when b <> 0I && a % b = 0I -> a / b
-        | a, b when a <> 0I && b % a = 0I -> b / a
-        | _ -> 0I
+        exact a b |> Option.orElseWith (fun () -> exact b a) |> Option.defaultValue 0I
 
     first :: rest
     |> List.fold (fun (seen, total) value -> value :: seen, total + (seen |> List.sumBy (quotient value))) ([], 0I)
