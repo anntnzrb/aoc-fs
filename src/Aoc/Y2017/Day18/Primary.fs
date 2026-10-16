@@ -5,6 +5,7 @@ module Aoc.Y2017.Day18.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day18.Input
+open FsToolkit.ErrorHandling
 
 let private registerValue registers (Register name) =
     registers |> Map.tryFind name |> Option.defaultValue 0L
@@ -64,9 +65,7 @@ let private recover (program: Instruction array) =
                 | Ok next -> run (position + 1L) next sound
                 | Error error -> Error error
             | Receive target when registerValue registers target <> 0L ->
-                match sound with
-                | Some frequency -> Ok frequency
-                | None -> Error "recovery before a sound"
+                sound |> Result.requireSome "recovery before a sound"
             | Receive _ -> run (position + 1L) registers sound
             | Jump(condition, offset) -> run (jumpTarget position read condition offset) registers sound
 
@@ -151,12 +150,10 @@ let private duet (program: Instruction array) =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun instructions ->
+        result {
+            let! instructions = Input.parse input
             let program = List.toArray instructions
-
-            recover program
-            |> Result.bind (fun frequency ->
-                duet program
-                |> Result.map (fun sent -> Answers.both (string frequency) (string sent))))
+            let! frequency = recover program
+            let! sent = duet program
+            return Answers.both (string frequency) (string sent)
+        }
