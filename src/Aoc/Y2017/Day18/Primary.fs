@@ -6,10 +6,25 @@ module Aoc.Y2017.Day18.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day18.Input
 
+let private registerValue registers (Register name) =
+    registers |> Map.tryFind name |> Option.defaultValue 0L
+
 let private value registers =
     function
     | Literal number -> number
-    | Read(Register name) -> registers |> Map.tryFind name |> Option.defaultValue 0L
+    | Read register -> registerValue registers register
+
+let private update registers (Register name as target) operation operand =
+    let old = registerValue registers target
+    let number = value registers operand
+
+    match operation, number with
+    | Assign, _ -> Ok number
+    | Increase, _ -> Ok(old + number)
+    | Product, _ -> Ok(old * number)
+    | Remainder, 0L -> Error "modulo by zero"
+    | Remainder, _ -> Ok(old % number)
+    |> Result.map (fun result -> Map.add name result registers)
 
 let private recover (program: Instruction array) =
     let rec run position registers sound =
@@ -17,24 +32,13 @@ let private recover (program: Instruction array) =
             Error "program terminated without recovery"
         else
             let read = value registers
-            let store (Register name) number = Map.add name number registers
 
             match program[int position] with
             | Sound operand -> run (position + 1L) registers (Some(read operand))
-            | Set(target, operand) -> run (position + 1L) (store target (read operand)) sound
-            | Add((Register name as target), operand) ->
-                let old = registers |> Map.tryFind name |> Option.defaultValue 0L
-                run (position + 1L) (store target (old + read operand)) sound
-            | Multiply((Register name as target), operand) ->
-                let old = registers |> Map.tryFind name |> Option.defaultValue 0L
-                run (position + 1L) (store target (old * read operand)) sound
-            | Modulo((Register name as target), operand) ->
-                let old = registers |> Map.tryFind name |> Option.defaultValue 0L
-
-                match read operand with
-                | 0L -> Error "modulo by zero"
-                | divisor -> run (position + 1L) (store target (old % divisor)) sound
-            | Receive operand when read operand <> 0L ->
+            | Update(target, operation, operand) ->
+                update registers target operation operand
+                |> Result.bind (fun next -> run (position + 1L) next sound)
+            | Receive target when registerValue registers target <> 0L ->
                 match sound with
                 | Some frequency -> Ok frequency
                 | None -> Error "recovery before a sound"

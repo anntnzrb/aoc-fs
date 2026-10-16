@@ -11,14 +11,18 @@ type Operand =
     | Literal of int64
     | Read of Register
 
+/// The arithmetic updates supported by the tablet.
+type Operation =
+    | Assign
+    | Increase
+    | Product
+    | Remainder
+
 /// The seven instructions understood by the tablet.
 type Instruction =
     | Sound of Operand
-    | Set of Register * Operand
-    | Add of Register * Operand
-    | Multiply of Register * Operand
-    | Modulo of Register * Operand
-    | Receive of Operand
+    | Update of Register * Operation * Operand
+    | Receive of Register
     | Jump of Operand * Operand
 
 /// Parses a nonempty program, rejecting malformed instructions and operands.
@@ -27,23 +31,20 @@ let parse (input: string) : Result<Instruction list, string> =
     let operand = (pint64 |>> Literal) <|> (register |>> Read)
     let gap = skipMany1 (anyOf " \t")
 
-    let unary name construct =
-        pstring name >>. gap >>. operand |>> construct
-
-    let binary name construct =
+    let update name operation =
         pstring name
         >>. gap
-        >>. pipe2 (register .>> gap) operand (fun x y -> construct (x, y))
+        >>. pipe2 (register .>> gap) operand (fun x y -> Update(x, operation, y))
 
     let instruction =
         choice
             [
-                unary "snd" Sound
-                binary "set" Set
-                binary "add" Add
-                binary "mul" Multiply
-                binary "mod" Modulo
-                unary "rcv" Receive
+                pstring "snd" >>. gap >>. operand |>> Sound
+                update "set" Assign
+                update "add" Increase
+                update "mul" Product
+                update "mod" Remainder
+                pstring "rcv" >>. gap >>. register |>> Receive
                 pstring "jgz"
                 >>. gap
                 >>. pipe2 (operand .>> gap) operand (fun x y -> Jump(x, y))
