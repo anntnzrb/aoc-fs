@@ -1,16 +1,15 @@
 // approach: use shared circular reversals for the numeric round and dense hash, then encode hexadecimal
-// cost: O(n + sum of numeric lengths + 64 * sum of ASCII lengths) time, O(n + 256) memory; up to five text scans, two numeric and 64 suffixed ASCII-length traversals
-// trade: shared knot hashing keeps reversal semantics in one place; part 1 is 0 for text without a numeric interpretation
+// cost: O(n + sum of numeric lengths + 64 * sum of ASCII lengths) time, O(n + 256) memory; up to six text scans, one numeric and 64 suffixed ASCII-length traversals
+// trade: shared knot hashing keeps reversal semantics in one place; parsing requires a numeric length list
 module Aoc.Y2017.Day10.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day10.Input
 
 let private product lengths =
-    let marks =
-        lengths |> List.map (fun (Length length) -> length) |> Aoc.KnotHash.sparse 1
-
-    marks[0] * marks[1]
+    match lengths |> Aoc.KnotHash.sparse 1 |> Array.truncate 2 with
+    | [| first; second |] -> Ok(first * second)
+    | _ -> Error "knot hash must contain at least two marks"
 
 let private hash text =
     text
@@ -22,6 +21,7 @@ let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun puzzle ->
-            let part1 = puzzle.Lengths |> Option.map product |> Option.defaultValue 0
-            Answers.both (string part1) (hash puzzle.Text))
+        |> Result.bind (fun puzzle ->
+            puzzle.Lengths
+            |> product
+            |> Result.map (fun part1 -> Answers.both (string part1) (hash puzzle.Text)))
