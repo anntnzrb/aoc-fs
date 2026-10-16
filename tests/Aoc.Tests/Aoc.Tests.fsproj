@@ -41,6 +41,8 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="Expecto" />
+    <PackageReference Include="Expecto.FsCheck" />
+    <PackageReference Include="FsCheck" />
     <PackageReference Include="YoloDev.Expecto.TestSdk" />
     <ProjectReference Include="../../src/Aoc/Aoc.fsproj" />
     <ProjectReference Include="../../app/Aoc.Ops/Aoc.Ops.fsproj" />

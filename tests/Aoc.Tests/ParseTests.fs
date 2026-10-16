@@ -8,6 +8,28 @@ let tests =
     testList
         "Parse"
         [
+            testProperty "traverse agrees with an eager first-error reference" (fun (values: int list) fails ->
+                let parse value =
+                    if fails value then Result.Error value else Result.Ok value
+
+                let expected =
+                    values
+                    |> List.map parse
+                    |> List.fold
+                        (fun state next ->
+                            match state, next with
+                            | Result.Error error, _
+                            | _, Result.Error error -> Result.Error error
+                            | Result.Ok parsed, Result.Ok value -> Result.Ok(value :: parsed))
+                        (Result.Ok [])
+                    |> Result.map List.rev
+
+                Aoc.Parse.traverse parse values = expected)
+
+            testProperty "traverse Ok preserves every value" (fun (values: int list) ->
+                let actual: Result<int list, unit> = Aoc.Parse.traverse Result.Ok values
+                actual = Result.Ok values)
+
             testCase "traverse preserves source order" (fun () ->
                 let actual = [ 1; 2; 3 ] |> Aoc.Parse.traverse (fun value -> Result.Ok(value * 2))
                 Expect.equal actual (Result.Ok [ 2; 4; 6 ]) "Parsed values remain in source order")
