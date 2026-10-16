@@ -1,0 +1,2 @@
+# Scratch probes and audit references are not repository sources.
+.cache/
