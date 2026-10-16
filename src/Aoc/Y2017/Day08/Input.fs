@@ -46,31 +46,29 @@ let private instruction (line: string) =
         | "!=" -> Some NotEqual
         | _ -> None
 
-    match line.Split(' ', System.StringSplitOptions.RemoveEmptyEntries) with
-    | [| target; op; amount; "if"; source; cmp; threshold |] when register target && register source ->
-        match operation op, System.Int64.TryParse amount, comparison cmp, System.Int64.TryParse threshold with
-        | Some op, (true, amount), Some cmp, (true, threshold) ->
-            Ok
-                {
-                    Target = target
-                    Operation = op
-                    Amount = amount
-                    Source = source
-                    Comparison = cmp
-                    Threshold = threshold
-                }
-        | _ -> Error $"invalid instruction: {line}"
-    | _ -> Error $"invalid instruction: {line}"
+    let parsed =
+        match line.Split(' ', System.StringSplitOptions.RemoveEmptyEntries) with
+        | [| target; op; amount; "if"; source; cmp; threshold |] when register target && register source ->
+            match operation op, System.Int64.TryParse amount, comparison cmp, System.Int64.TryParse threshold with
+            | Some op, (true, amount), Some cmp, (true, threshold) ->
+                Some
+                    {
+                        Target = target
+                        Operation = op
+                        Amount = amount
+                        Source = source
+                        Comparison = cmp
+                        Threshold = threshold
+                    }
+            | _ -> None
+        | _ -> None
+
+    match parsed with
+    | Some value -> Ok value
+    | None -> Error $"invalid instruction: {line}"
 
 /// Parses a non-empty sequence of instructions in execution order.
 let parse (input: string) : Result<Instruction list, string> =
     match input.Trim() with
     | "" -> Error "empty register program"
-    | text ->
-        text.Replace("\r\n", "\n").Split('\n')
-        |> Array.fold
-            (fun acc line ->
-                acc
-                |> Result.bind (fun instructions -> instruction line |> Result.map (fun next -> next :: instructions)))
-            (Ok [])
-        |> Result.map List.rev
+    | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse instruction
