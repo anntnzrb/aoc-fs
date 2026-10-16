@@ -39,6 +39,7 @@ static: analyze lint doc-built format
 
 format:
     dotnet tool run fantomas --check .
+    nixfmt --check flake.nix
 
 # The doc check against the Release build `check` just made.
 doc-built:

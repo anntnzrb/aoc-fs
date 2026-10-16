@@ -4,6 +4,8 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Lock transitive packages as well as CPM's direct package pins. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <WarningLevel>5</WarningLevel>
     <WarnOn>$(WarnOn);21;22;52;1178;1182;3180;3186;3366;3388;3389;3390;3395;3517;3559;3560;3570;3579;3582;3878</WarnOn>
   </PropertyGroup>
