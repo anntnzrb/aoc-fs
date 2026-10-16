@@ -28,6 +28,8 @@
     <Compile Include="Y2017/Day10/Primary.fs" />
     <Compile Include="Y2017/Day11/Input.fs" />
     <Compile Include="Y2017/Day11/Primary.fs" />
+    <Compile Include="Y2017/Day12/Input.fs" />
+    <Compile Include="Y2017/Day12/Primary.fs" />
     <Compile Include="Y2017/Registry.fs" />
     <Compile Include="Registry.fs" />
   </ItemGroup>
