@@ -4,6 +4,7 @@ open System
 open System.IO
 open Microsoft.FSharp.Reflection
 open FSharp.Analyzers.SDK
+open FSharp.Compiler.CodeAnalysis
 open FSharp.Compiler.Syntax
 open FSharp.Compiler.Symbols
 open FSharp.Compiler.Text
@@ -106,6 +107,56 @@ let rec private calledFunction =
     | SynExpr.LongIdent(range = range) -> Some range
     | _ -> None
 
+let rec private publicEntity (entity: FSharpEntity) =
+    entity.Accessibility.IsPublic
+    && (entity.DeclaringEntity |> Option.forall publicEntity)
+
+let private undocumented =
+    function
+    | FSharpXmlDoc.None -> true
+    | FSharpXmlDoc.FromXmlText text -> text.IsEmpty
+    | FSharpXmlDoc.FromXmlFile _ -> false
+
+let private documentation (uses: FSharpSymbolUse list) =
+    uses
+    |> List.choose (fun usage ->
+        let missing =
+            if not usage.IsFromDefinition then
+                false
+            else
+                match usage.Symbol with
+                | :? FSharpEntity as entity ->
+                    not entity.IsFSharpModule
+                    && not entity.IsNamespace
+                    && publicEntity entity
+                    && undocumented entity.XmlDoc
+                | :? FSharpMemberOrFunctionOrValue as value ->
+                    value.IsModuleValueOrMember
+                    && not value.IsMember
+                    && not value.IsCompilerGenerated
+                    && value.Accessibility.IsPublic
+                    && (value.DeclaringEntity |> Option.exists publicEntity)
+                    && undocumented value.XmlDoc
+                | :? FSharpUnionCase as unionCase ->
+                    unionCase.Accessibility.IsPublic
+                    && publicEntity unionCase.DeclaringEntity
+                    && unionCase.DeclaringEntity.RepresentationAccessibility.IsPublic
+                    && undocumented unionCase.XmlDoc
+                | :? FSharpField as field ->
+                    not field.IsUnionCaseField
+                    && not field.IsCompilerGenerated
+                    && field.Accessibility.IsPublic
+                    && (field.DeclaringEntity
+                        |> Option.exists (fun entity ->
+                            publicEntity entity && entity.RepresentationAccessibility.IsPublic))
+                    && undocumented field.XmlDoc
+                | _ -> false
+
+        if missing then
+            Some(message "AOC007" "Public library declarations require a /// XML doc comment." usage.Range)
+        else
+            None)
+
 /// Enforce functional solution rules and forbid authored object models in production files.
 /// Exploration modules are exempt from solution rules, but not object-model rules.
 [<CliAnalyzer("Aoc.Discipline", "Enforce repository functional programming rules")>]
@@ -120,6 +171,13 @@ let analyze: Analyzer<CliContext> =
             else
                 let syntax = nodes (box context.ParseFileResults.ParseTree) |> Seq.toList
                 let uses = context.GetAllSymbolUsesOfFile() |> Seq.toList
+                let normalized = context.FileName.Replace('\\', '/')
+
+                let libraryDocumentation =
+                    normalized.Contains("/src/Aoc/", StringComparison.Ordinal)
+                    && not (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"/Y[0-9]{4}/Day[0-9]{2}/"))
+
+                let documentationMessages = if libraryDocumentation then documentation uses else []
                 // Only the second tuple binding of FParsec's real factory may be assigned.
                 // Match the reference's declaration identity, so shadowed lookalikes are rejected.
                 let forwarded =
@@ -289,6 +347,6 @@ let analyze: Analyzer<CliContext> =
                         async.Return []
 
                 return
-                    syntaxMessages @ symbolMessages @ optionMessages
+                    syntaxMessages @ symbolMessages @ optionMessages @ documentationMessages
                     |> List.distinctBy (fun diagnostic -> diagnostic.Code, diagnostic.Range)
         }

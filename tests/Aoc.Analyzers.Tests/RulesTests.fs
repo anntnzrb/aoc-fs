@@ -43,6 +43,49 @@ let tests =
     testList
         "Repository analyzers"
         [
+            for name, source, count in
+                [
+                    "value", "let value = 1", 1
+                    "function", "let value x = x", 1
+                    "alias", "type Value = int", 1
+                    "union", "type Value = First | Second", 3
+                    "record", "type Value = { First: int; Second: int }", 3
+                    "documented union",
+                    "/// A choice.\ntype Value =\n    /// First.\n    | First\n    /// Second.\n    | Second",
+                    0
+                    "documented record",
+                    "/// A pair.\ntype Value =\n    {\n        /// First.\n        First: int\n        /// Second.\n        Second: int\n    }",
+                    0
+                    "documented function", "/// Identity.\nlet value x = x", 0
+                    "private declarations", "let private value = 1\ntype private Value = { Field: int }", 0
+                    "internal declarations", "let internal value = 1\ntype internal Value = First", 0
+                    "private module", "module private Hidden =\n    let value = 1\n    type Value = { Field: int }", 0
+                    "local binding", "/// Identity.\nlet value x =\n    let local = x\n    local", 0
+                    "private representation", "/// Opaque.\ntype Value = private { Field: int }", 0
+                    "private union representation", "/// Opaque.\ntype Value = private First of int", 0
+                    "union payload", "/// A value.\ntype Value =\n    /// Payload.\n    | Value of payload: int", 0
+                ] do
+                testCase ("AOC007 " + name) (fun () ->
+                    let found =
+                        diagnostics "/repo/src/Aoc/Shared.fs" source
+                        |> List.filter (fun d -> d.Code = "AOC007")
+
+                    Expect.equal found.Length count "Public declarations only")
+            for path, count in
+                [
+                    "/repo/src/Aoc/Registry.fs", 1
+                    "/repo/src/Aoc/Y2017/Registry.fs", 1
+                    "/repo/src/Aoc/Y2017/Day01/Primary.fs", 0
+                    "/repo/src/Aoc/Y2017/Day01/Input.fs", 0
+                    "/repo/src/Aoc/Y2017/Day01/Recursive.fs", 0
+                    "/repo/app/Aoc.Ops/Command.fs", 0
+                    "/repo/tests/Aoc.Tests/Example.fs", 0
+                ] do
+                testCase ("AOC007 scope " + path) (fun () ->
+                    let found =
+                        diagnostics path "let value = 1" |> List.filter (fun d -> d.Code = "AOC007")
+
+                    Expect.equal found.Length count "Registries remain checked; their templates already emit docs")
             for code, bad, good in
                 [
                     "AOC001", "let mutable count = 0", "let count = 0"
