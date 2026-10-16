@@ -71,6 +71,16 @@ let private enhance (lookup: Map<int * int, bool[,]>) (image: bool[,]) =
         (Ok())
     |> Result.map (fun () -> output)
 
+let private count image =
+    let mutable total = 0
+
+    image
+    |> Array2D.iter (fun on ->
+        if on then
+            total <- total + 1)
+
+    total
+
 let solve: Solver =
     fun input ->
         input
@@ -79,14 +89,12 @@ let solve: Solver =
             let lookup = index rules
             let start = grid [ ".#."; "..#"; "###" ]
 
-            [ 1..5 ]
-            |> List.fold (fun image _ -> image |> Result.bind (enhance lookup)) (Ok start)
-            |> Result.map (fun image ->
-                let mutable count = 0
-
-                image
-                |> Array2D.iter (fun on ->
-                    if on then
-                        count <- count + 1)
-
-                Answers.both (string count) "0"))
+            [ 1..18 ]
+            |> List.fold
+                (fun result iteration ->
+                    result
+                    |> Result.bind (fun (image, part1) ->
+                        enhance lookup image
+                        |> Result.map (fun next -> next, if iteration = 5 then count next else part1)))
+                (Ok(start, 0))
+            |> Result.map (fun (image, part1) -> Answers.both (string part1) (count image |> string)))
