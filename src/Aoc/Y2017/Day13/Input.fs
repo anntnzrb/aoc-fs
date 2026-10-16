@@ -26,6 +26,4 @@ let parse (input: string) : Result<Layer list, string> =
         (puint32 |>> Depth) .>> pstring ": " .>>. range
         |>> fun (depth, range) -> { Depth = depth; Range = range }
 
-    match run (sepEndBy1 layer newline .>> eof) input with
-    | Success(layers, _, _) -> Result.Ok layers
-    | Failure(message, _, _) -> Result.Error message
+    Aoc.Parse.run (sepEndBy1 layer newline .>> eof) input
