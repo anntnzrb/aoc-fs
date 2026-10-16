@@ -7,10 +7,11 @@ module Aoc.KnotHash
 let sparse rounds lengths =
     let marks = Array.init 256 id
 
-    Seq.replicate rounds lengths
-    |> Seq.concat
-    |> Seq.fold
-        (fun (position, skip) length ->
+    let mutable position = 0
+    let mutable skip = 0
+
+    for _ in 1..rounds do
+        for length in lengths do
             for offset in 0 .. length / 2 - 1 do
                 let left = (position + offset) % 256
                 let right = (position + length - 1 - offset) % 256
@@ -19,9 +20,8 @@ let sparse rounds lengths =
                 marks[right] <- saved
 
             // Only the skip's residue affects circular positions, including across rounds.
-            (position + length + skip) % 256, (skip + 1) % 256)
-        (0, 0)
-    |> ignore
+            position <- (position + length + skip) % 256
+            skip <- (skip + 1) % 256
 
     marks
 
@@ -29,7 +29,7 @@ let sparse rounds lengths =
 /// Appends the standard suffix, runs 64 rounds and XORs consecutive 16-mark blocks.
 /// The caller must supply ASCII text; non-ASCII text is outside the contract. Valid text cannot fail.
 let dense (text: string) =
-    let lengths = (text |> Seq.map int |> Seq.toList) @ [ 17; 31; 73; 47; 23 ]
+    let lengths = [ for c in text -> int c ] @ [ 17; 31; 73; 47; 23 ]
 
     lengths
     |> sparse 64
