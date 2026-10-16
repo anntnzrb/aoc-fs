@@ -1,14 +1,89 @@
 module Aoc.Tests.Y2017.Day23Tests
 
 open Expecto
+open FsCheck.FSharp
 open Aoc.Solution
 open Aoc.Y2017.Day23
+
+let private programs =
+    let register =
+        Gen.elements [ Input.A; Input.B; Input.C; Input.D; Input.E; Input.F; Input.G; Input.H ]
+
+    let operand =
+        Gen.oneof
+            [
+                Gen.choose (-5, 5) |> Gen.map (int64 >> Input.Literal)
+                register |> Gen.map Input.Read
+            ]
+
+    let instruction =
+        gen {
+            let! target = register
+            let! source = operand
+            let! offset = Gen.choose (1, 3)
+
+            return!
+                Gen.elements
+                    [
+                        Input.Set(target, source)
+                        Input.Sub(target, source)
+                        Input.Mul(target, source)
+                        Input.Jump(source, Input.Literal(int64 offset))
+                    ]
+        }
+
+    gen {
+        let! count = Gen.choose (1, 8)
+        return! Gen.listOfLength count instruction
+    }
+
+let private render program =
+    let register =
+        function
+        | Input.A -> "a"
+        | Input.B -> "b"
+        | Input.C -> "c"
+        | Input.D -> "d"
+        | Input.E -> "e"
+        | Input.F -> "f"
+        | Input.G -> "g"
+        | Input.H -> "h"
+
+    let operand =
+        function
+        | Input.Literal value -> string value
+        | Input.Read source -> register source
+
+    program
+    |> List.map (function
+        | Input.Set(target, source) -> $"set {register target} {operand source}"
+        | Input.Sub(target, source) -> $"sub {register target} {operand source}"
+        | Input.Mul(target, source) -> $"mul {register target} {operand source}"
+        | Input.Jump(condition, offset) -> $"jnz {operand condition} {operand offset}")
+    |> String.concat "\n"
+
+let private config =
+    { FsCheckConfig.defaultConfig with
+        maxTest = 50
+        endSize = 8
+    }
 
 [<Tests>]
 let tests =
     testList
         "Y2017.Day23"
         [
+            testPropertyWithConfig
+                config
+                "parser preserves instructions and operand kinds"
+                (Prop.forAll (Arb.fromGen programs) (fun expected -> Input.parse (render expected) = Ok expected))
+            testPropertyWithConfig
+                config
+                "bounded forward-jump programs return a result without throwing"
+                (Prop.forAll (Arb.fromGen programs) (fun program ->
+                    match Primary.solve (render program) with
+                    | Ok _
+                    | Error _ -> true))
             testCase "rejects unsupported factor-loop structure" (fun () ->
                 Expect.equal
                     (Primary.solve "set d 2\nset e 2\n")
