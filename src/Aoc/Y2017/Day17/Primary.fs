@@ -5,6 +5,7 @@ module Aoc.Y2017.Day17.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day17.Input
+open FsToolkit.ErrorHandling
 
 let private advance steps position value = (position + steps % value) % value + 1
 
@@ -21,9 +22,9 @@ let private afterZero steps =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun (Steps steps) ->
+        result {
+            let! (Steps steps) = Input.parse input
+
             let position, buffer =
                 [ 1..2017 ]
                 |> List.fold
@@ -32,6 +33,10 @@ let solve: Solver =
                         next, buffer |> List.insertAt next value)
                     (0, [ 0 ])
 
-            match buffer |> List.tryItem ((position + 1) % List.length buffer) with
-            | Some value -> Ok(Answers.both (string value) (afterZero steps |> string))
-            | None -> Error "missing successor")
+            let! value =
+                buffer
+                |> List.tryItem ((position + 1) % List.length buffer)
+                |> Result.requireSome "missing successor"
+
+            return Answers.both (string value) (afterZero steps |> string)
+        }
