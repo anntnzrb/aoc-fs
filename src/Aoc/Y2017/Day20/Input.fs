@@ -34,6 +34,4 @@ let parse (input: string) : Result<Particle list, string> =
                 Acceleration = acceleration
             }
 
-    match run (sepEndBy1 particle newline .>> eof) input with
-    | Success(particles, _, _) -> Result.Ok particles
-    | Failure(message, _, _) -> Result.Error message
+    Aoc.Parse.run (sepEndBy1 particle newline .>> eof) input
