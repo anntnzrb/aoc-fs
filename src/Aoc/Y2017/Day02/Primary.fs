@@ -1,6 +1,6 @@
-// approach: fold each row's minimum and maximum together, then sum their differences
-// cost: O(n) arithmetic operations, O(n) memory; one parse and one traversal of the parsed values
-// trade: nonempty rows seed the extrema without sentinels; bigint keeps integer arithmetic exact
+// approach: sum row extrema differences and exact quotients from unordered pairs
+// cost: O(sum of squared row lengths) arithmetic operations, O(n) memory; one parse and two traversals of parsed values, with pair scans
+// trade: immutable folds enumerate each pair once without indexes; bigint keeps integer arithmetic exact
 module Aoc.Y2017.Day02.Primary
 
 open Aoc.Solution
@@ -13,8 +13,24 @@ let private difference (Row(first, rest)) =
 
     largest - smallest
 
+let private divisionSum (Row(first, rest)) =
+    let quotient a b =
+        match a, b with
+        | a, b when b <> 0I && a % b = 0I -> a / b
+        | a, b when a <> 0I && b % a = 0I -> b / a
+        | _ -> 0I
+
+    first :: rest
+    |> List.fold (fun (seen, total) value -> value :: seen, total + (seen |> List.sumBy (quotient value))) ([], 0I)
+    |> snd
+
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun sheet -> Answers.both (sheet.Rows |> List.sumBy difference |> string) "0")
+        |> Result.map (fun sheet ->
+            let part1, part2 =
+                sheet.Rows
+                |> List.fold (fun (p1, p2) row -> p1 + difference row, p2 + divisionSum row) (0I, 0I)
+
+            Answers.both (string part1) (string part2))
