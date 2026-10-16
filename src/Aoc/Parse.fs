@@ -5,7 +5,7 @@ open FParsec
 
 /// Applies the parser in source order, returning values in that order or the first error.
 /// Stops enumerating at the first error without pulling another element and disposes the enumerator.
-let traverse f (source: seq<'a>) =
+let traverse f (source: 'a seq) =
     use iterator = source.GetEnumerator()
 
     let rec loop acc =

@@ -54,6 +54,6 @@ let tests =
                 }
                 "solver is total on generated terminating routes"
                 (Prop.forAll (Arb.fromGen diagrams) (fun (text, _) ->
-                    Primary.solve text |> ignore
+                    Primary.solve text |> ignore<Result<Aoc.Solution.Answers, string>>
                     true))
         ]

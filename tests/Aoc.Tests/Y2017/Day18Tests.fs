@@ -72,7 +72,7 @@ let tests =
                 }
                 "solver is total on terminating generated programs"
                 (Prop.forAll (Arb.fromGen programs) (fun (text, _) ->
-                    Primary.solve text |> ignore
+                    Primary.solve text |> ignore<Result<Answers, string>>
                     true))
             testCase "minimum integer modulo minus one is zero" (fun () ->
                 // Every integer is divisible by -1: recover 0; each duet copy sends once.

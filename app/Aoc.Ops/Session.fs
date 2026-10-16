@@ -10,7 +10,7 @@ let parse (text: string) : Result<string, string> =
     |> Array.tryPick (fun line ->
         let line = line.Trim()
 
-        if line = "" || line.StartsWith('#') then
+        if line.Length = 0 || line.StartsWith('#') then
             None
         else
             match line.Split('=', 2) with

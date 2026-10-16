@@ -41,7 +41,7 @@ let private infections mode bursts infected =
             | _, (true, Flagged) -> None, -dx, -dy, 0
 
         match next with
-        | None -> nodes.Remove position |> ignore
+        | None -> nodes.Remove position |> ignore<bool>
         | Some state -> nodes[position] <- state
 
         dx <- nextDx

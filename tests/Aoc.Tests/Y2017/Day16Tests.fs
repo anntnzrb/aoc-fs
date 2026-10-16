@@ -46,7 +46,7 @@ let tests =
                 | result -> failtestf "unexpected parse: %A" result)
             testCase "rejects empty dances and incomplete comma-separated moves" (fun () ->
                 for input in [ ""; " \n"; ",s1"; "s1,"; "s1,,s2"; "s1junk"; "s1x0/1"; "s1, s2" ] do
-                    Expect.isError (Input.parse input) $"reject {input}")
+                    Expect.isError (Input.parse input) $"reject %O{input}")
             testCase "rejects invalid move operands" (fun () ->
                 for input in
                     [

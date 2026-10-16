@@ -27,7 +27,7 @@ let private childProcess root executable arguments input =
         )
 
     start.Environment["LC_ALL"] <- "C"
-    arguments |> List.iter start.ArgumentList.Add
+    arguments |> List.iter (fun argument -> start.ArgumentList.Add argument)
     use child = new Process(StartInfo = start)
     let watch = Stopwatch.StartNew()
 
@@ -132,68 +132,8 @@ let private renderSummary =
             (Bench.number (Some summary.Minimum))
             (Bench.number (Some summary.Maximum))
 
-/// Verifies all registered variants, measures optimized processes and optionally appends canonical records.
-let run root year day record =
-    if record then
-        validateCanonical root
-
-    let revision = command root "git" [ "rev-parse"; "HEAD" ]
-    let names = variants year day
-
-    if not (List.contains "primary" names) then
-        failwith "no registered primary for requested day"
-
-    let inputPath = Path.Combine(root, "inputs", string year, sprintf "day%02d.txt" day)
-    let input = File.ReadAllText inputPath
-
-    if input = "" then
-        failwith "cached input is empty"
-
-    let published = Path.Combine(root, ".cache", "bench", "publish")
-
-    command root "dotnet" [ "publish"; "app/Aoc.Cli"; "-c"; "Release"; "-o"; published; "--nologo" ]
-    |> ignore
-
-    let pinned = core ()
-
-    let launch name =
-        let args =
-            [ Path.Combine(published, "aoc.dll"); string year; string day ]
-            @ (if name = "primary" then [] else [ name ])
-
-        match pinned with
-        | Some cpu -> "taskset", [ "-c"; cpu; "dotnet" ] @ args
-        | None -> "dotnet", args
-
-    let execute name text =
-        let executable, args = launch name
-        childProcess root executable args text
-
-    let primaryCode, primaryOutput, _, primaryWall = execute "primary" input
-    Bench.agreement "primary" primaryOutput (primaryCode, primaryOutput) |> require
-
-    if primaryOutput = "" then
-        failwith "primary returned no answers"
-
-    let pilots =
-        names
-        |> List.map (fun name ->
-            if name = "primary" then
-                name, primaryWall
-            else
-                let code, output, _, wall = execute name input
-                Bench.agreement name primaryOutput (code, output) |> require
-                name, wall)
-        |> Map.ofList
-    // No timed phase begins until every registered variant agrees with the primary.
-    let emptyCode, emptyOutput, _, _ = execute "primary" ""
-    Bench.agreement "empty baseline" "" (emptyCode, emptyOutput) |> require
-
-    let perf name text =
-        let executable, args = launch name
-        childProcess root "perf" ([ "stat"; "-x,"; "-e"; "instructions:u"; "--"; executable ] @ args) text
-
-    let available, workLimitation =
+let private instructionSamples perf names primaryOutput input =
+    let workSupport =
         if RuntimeInformation.IsOSPlatform OSPlatform.Linux then
             let code, output, errors, _ = perf "primary" ""
 
@@ -201,13 +141,20 @@ let run root year day record =
             | 0, Some _ ->
                 Bench.agreement "perf empty baseline" "" (code, output) |> require
 
-                true,
-                "Work counts user-space instructions across runtime/JIT and solver; paired startup subtraction retains noise."
+                Ok
+                    "Work counts user-space instructions across runtime/JIT and solver; paired startup subtraction retains noise."
             | _ ->
-                false,
-                "Work unavailable: perf instructions:u is unsupported or denied on this host; no substitute metric."
+                Error
+                    "Work unavailable: perf instructions:u is unsupported or denied on this host; no substitute metric."
         else
-            false, "Work unavailable: perf instructions:u is Linux-only; no substitute metric."
+            Error "Work unavailable: perf instructions:u is Linux-only; no substitute metric."
+
+    let available = Result.isOk workSupport
+
+    let workLimitation =
+        match workSupport with
+        | Ok message
+        | Error message -> message
 
     let workSamples =
         [ 1..5 ]
@@ -234,8 +181,9 @@ let run root year day record =
                     samples)
             Map.empty
 
-    let runs = pilots |> Map.map (fun _ wall -> if wall > 1000000M then 3 else 10)
+    workSamples, workLimitation
 
+let private timedSamples root launch names primaryOutput input runs workSamples =
     let timingFile =
         Path.Combine(Path.GetTempPath(), "aoc-bench-" + Guid.NewGuid().ToString("N"))
 
@@ -247,7 +195,11 @@ let run root year day record =
                     names
                     |> List.fold
                         (fun samples name ->
-                            if round > Map.find name runs then
+                            if
+                                round >
+                                    (Map.tryFind name runs
+                                     |> Option.defaultWith (fun () -> failwith "missing timing run count"))
+                            then
                                 samples
                             else
                                 let executable, args = launch name
@@ -273,12 +225,17 @@ let run root year day record =
     let measurements: Bench.Measurement list =
         names
         |> List.map (fun name ->
-            let observations = Map.find name timings
+            let observations =
+                Map.tryFind name timings
+                |> Option.defaultWith (fun () -> failwith "missing timing samples")
+
             let pairs = Map.tryFind name workSamples |> Option.defaultValue []
 
             {
                 Solution = name
-                Runs = Map.find name runs
+                Runs =
+                    Map.tryFind name runs
+                    |> Option.defaultWith (fun () -> failwith "missing timing run count")
                 Work = Bench.work pairs
                 Instructions = pairs |> List.map fst |> Bench.summarize
                 Wall =
@@ -291,8 +248,153 @@ let run root year day record =
                     |> List.map (fun (_, cpu, _) -> cpu)
                     |> Bench.summarize
                     |> Option.defaultWith (fun () -> failwith "no CPU samples")
-                Rss = observations |> List.map (fun (_, _, rss) -> rss) |> List.max
+                Rss = observations |> List.fold (fun maximum (_, _, rss) -> max maximum rss) 0M
             })
+
+    measurements
+
+let private report year day (names: string list) (measurements: Bench.Measurement list) limitations =
+    printfn "Benchmark %d/%02d: optimized publish; all %d variant(s) agree; answers withheld." year day names.Length
+
+    Console.WriteLine
+        "Statistics: median [minimum, maximum]; wall/CPU in us; work/instructions in user-space instructions."
+
+    for measurement in measurements do
+        printfn
+            "%s: runs=%d; work=%s; instructions=%s; wall=%s; cpu=%s; rss_peak_kib=%s"
+            measurement.Solution
+            measurement.Runs
+            (renderSummary measurement.Work)
+            (renderSummary measurement.Instructions)
+            (renderSummary (Some measurement.Wall))
+            (renderSummary (Some measurement.Cpu))
+            (Bench.number (Some measurement.Rss))
+
+    limitations |> List.iter (fun limitation -> printfn "Limitation: %s" limitation)
+
+
+let private recordMeasurements root year day revision measurements limitations =
+    if command root "git" [ "rev-parse"; "HEAD" ] <> revision then
+        failwith "revision changed during benchmark"
+
+    let host = metadata root
+    let directory = Path.Combine(root, "bench")
+    let csv = Path.Combine(directory, string year + ".csv")
+    Directory.CreateDirectory directory |> ignore<DirectoryInfo>
+
+    let prefix =
+        if File.Exists csv then
+            let existing = File.ReadAllText csv
+
+            if
+                not (existing.StartsWith(Bench.csvHeader + "\n", StringComparison.Ordinal))
+                || not (existing.EndsWith("\n", StringComparison.Ordinal))
+            then
+                failwith "existing benchmark CSV has invalid header or unterminated row"
+
+            ""
+        else
+            Bench.csvHeader + "\n"
+
+    let hosts = Path.Combine(directory, "hosts")
+    Directory.CreateDirectory hosts |> ignore<DirectoryInfo>
+    let snapshot = Path.Combine(hosts, host.Host + ".md")
+
+    if not (File.Exists snapshot) then
+        File.WriteAllText(
+            snapshot,
+            String.concat
+                "\n"
+                ([
+                    "# " + host.Host
+                    ""
+                    "OS: " + host.Os
+                    "CPU: " + host.Cpu
+                    "Compiler: " + host.Compiler
+                    "Language: " + host.Standard
+                    ""
+                 ]
+                 @ limitations)
+            + "\n"
+        )
+
+    File.AppendAllText(
+        csv,
+        prefix
+        + (measurements |> List.map (Bench.csvRow host year day) |> String.concat "\n")
+        + "\n"
+    )
+
+    printfn "Recorded %d row(s) in bench/%d.csv." measurements.Length year
+
+
+/// Verifies all registered variants, measures optimized processes and optionally appends canonical records.
+let run root year day record =
+    if record then
+        validateCanonical root
+
+    let revision = command root "git" [ "rev-parse"; "HEAD" ]
+    let names = variants year day
+
+    if not (List.contains "primary" names) then
+        failwith "no registered primary for requested day"
+
+    let inputPath = Path.Combine(root, "inputs", string year, sprintf "day%02d.txt" day)
+    let input = File.ReadAllText inputPath
+
+    if input.Length = 0 then
+        failwith "cached input is empty"
+
+    let published = Path.Combine(root, ".cache", "bench", "publish")
+
+    command root "dotnet" [ "publish"; "app/Aoc.Cli"; "-c"; "Release"; "-o"; published; "--nologo" ]
+    |> ignore<string>
+
+    let pinned = core ()
+
+    let launch name =
+        let args =
+            [ Path.Combine(published, "aoc.dll"); string year; string day ]
+            @ (if name = "primary" then [] else [ name ])
+
+        match pinned with
+        | Some cpu -> "taskset", [ "-c"; cpu; "dotnet" ] @ args
+        | None -> "dotnet", args
+
+    let execute name text =
+        let executable, args = launch name
+        childProcess root executable args text
+
+    let primaryCode, primaryOutput, _, primaryWall = execute "primary" input
+    Bench.agreement "primary" primaryOutput (primaryCode, primaryOutput) |> require
+
+    if primaryOutput.Length = 0 then
+        failwith "primary returned no answers"
+
+    let pilots =
+        names
+        |> List.map (fun name ->
+            if name = "primary" then
+                name, primaryWall
+            else
+                let code, output, _, wall = execute name input
+                Bench.agreement name primaryOutput (code, output) |> require
+                name, wall)
+        |> Map.ofList
+    // No timed phase begins until every registered variant agrees with the primary.
+    let emptyCode, emptyOutput, _, _ = execute "primary" ""
+    Bench.agreement "empty baseline" "" (emptyCode, emptyOutput) |> require
+
+    let perf name text =
+        let executable, args = launch name
+        childProcess root "perf" ([ "stat"; "-x,"; "-e"; "instructions:u"; "--"; executable ] @ args) text
+
+    let workSamples, workLimitation = instructionSamples perf names primaryOutput input
+
+    let runs = pilots |> Map.map (fun _ wall -> if wall > 1000000M then 3 else 10)
+
+    let measurements =
+        timedSamples root launch names primaryOutput input runs workSamples
 
     let limitations =
         [
@@ -307,76 +409,11 @@ let run root year day record =
             "Background system load and runtime/JIT nondeterminism remain; no generated-code mechanism or speedup is inferred."
         ]
 
-    printfn "Benchmark %d/%02d: optimized publish; all %d variant(s) agree; answers withheld." year day names.Length
-    printfn "Statistics: median [minimum, maximum]; wall/CPU in us; work/instructions in user-space instructions."
-
-    for measurement in measurements do
-        printfn
-            "%s: runs=%d; work=%s; instructions=%s; wall=%s; cpu=%s; rss_peak_kib=%s"
-            measurement.Solution
-            measurement.Runs
-            (renderSummary measurement.Work)
-            (renderSummary measurement.Instructions)
-            (renderSummary (Some measurement.Wall))
-            (renderSummary (Some measurement.Cpu))
-            (Bench.number (Some measurement.Rss))
-
-    limitations |> List.iter (printfn "Limitation: %s")
+    report year day names measurements limitations
 
     if record then
         validateCanonical root
 
-        if command root "git" [ "rev-parse"; "HEAD" ] <> revision then
-            failwith "revision changed during benchmark"
-
-        let host = metadata root
-        let directory = Path.Combine(root, "bench")
-        let csv = Path.Combine(directory, string year + ".csv")
-        Directory.CreateDirectory directory |> ignore
-
-        let prefix =
-            if File.Exists csv then
-                let existing = File.ReadAllText csv
-
-                if
-                    not (existing.StartsWith(Bench.csvHeader + "\n", StringComparison.Ordinal))
-                    || not (existing.EndsWith("\n", StringComparison.Ordinal))
-                then
-                    failwith "existing benchmark CSV has invalid header or unterminated row"
-
-                ""
-            else
-                Bench.csvHeader + "\n"
-
-        let hosts = Path.Combine(directory, "hosts")
-        Directory.CreateDirectory hosts |> ignore
-        let snapshot = Path.Combine(hosts, host.Host + ".md")
-
-        if not (File.Exists snapshot) then
-            File.WriteAllText(
-                snapshot,
-                String.concat
-                    "\n"
-                    ([
-                        "# " + host.Host
-                        ""
-                        "OS: " + host.Os
-                        "CPU: " + host.Cpu
-                        "Compiler: " + host.Compiler
-                        "Language: " + host.Standard
-                        ""
-                     ]
-                     @ limitations)
-                + "\n"
-            )
-
-        File.AppendAllText(
-            csv,
-            prefix
-            + (measurements |> List.map (Bench.csvRow host year day) |> String.concat "\n")
-            + "\n"
-        )
-
-        printfn "Recorded %d row(s) in bench/%d.csv." measurements.Length year
+        recordMeasurements root year day revision measurements limitations
 
     0

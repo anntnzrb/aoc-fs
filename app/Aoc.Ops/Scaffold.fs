@@ -29,8 +29,11 @@ let private days year paths =
 
 let private explorations year day paths =
     matching (sprintf @"\AY%d/Day%02d/([A-Z][A-Za-z0-9]*)\.fs\z" year day) paths
-    |> List.map (fun matched -> matched.Groups[1].Value)
-    |> List.filter (fun name -> name <> "Input" && name <> "Primary")
+    |> List.choose (fun matched ->
+        match matched.Groups[1].Value with
+        | "Input"
+        | "Primary" -> None
+        | name -> Some name)
     |> List.distinct
     |> List.sort
 

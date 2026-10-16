@@ -20,6 +20,5 @@ let tests =
                     (fun text -> Mutable.solve text = Primary.solve text))
             testProperty "integer extremes remain total" (fun (value: int) ->
                 Primary.solve (string value) = Mutable.solve (string value))
-            testProperty "malformed offset text returns Error" (fun (text: string) ->
-                Primary.solve ("x" + text) |> Result.isError)
+            testProperty "malformed offset text returns Error" ((+) "x" >> Primary.solve >> Result.isError)
         ]

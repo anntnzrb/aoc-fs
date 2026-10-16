@@ -157,6 +157,153 @@ let private documentation (uses: FSharpSymbolUse list) =
         else
             None)
 
+let private forwardedReceiver (syntax: obj list) (uses: FSharpSymbolUse list) =
+    let forwarded =
+        syntax
+        |> List.choose (function
+            | :? SynBinding as binding ->
+                let (SynBinding(headPat = pattern; expr = expression)) = binding
+
+                match bindingPattern pattern with
+                | SynPat.Tuple(elementPats = [ _; SynPat.Named(ident = SynIdent(reference, _)) ]) when
+                    uses
+                    |> List.exists (fun usage ->
+                        (calledFunction expression
+                         |> Option.exists (fun range -> contains range usage.Range))
+                        && match usage.Symbol with
+                           | :? FSharpMemberOrFunctionOrValue as symbol ->
+                               symbol.FullName = "FParsec.Primitives.createParserForwardedToRef"
+                           | _ -> false)
+                    ->
+                    Some reference.idRange
+                | _ -> None
+            | _ -> None)
+
+    let forwardedReceiver (receiverRange: range) =
+        uses
+        |> List.exists (fun usage ->
+            receiverRange = usage.Range
+            && match usage.Symbol.DeclarationLocation with
+               | Some declaration -> forwarded |> List.contains declaration
+               | None -> false)
+
+    forwardedReceiver
+
+let private syntaxMessages solution forwardedReceiver (syntax: obj list) =
+    syntax
+    |> List.collect (function
+        | :? SynBinding as binding when solution ->
+            let (SynBinding(isMutable = mutableBinding; headPat = pattern)) = binding
+
+            if mutableBinding then
+                [
+                    message "AOC001" "Mutable bindings are forbidden in solutions." pattern.Range
+                ]
+            else
+                []
+        | :? SynField as field when solution ->
+            let (SynField(isMutable = mutableField; range = range)) = field
+
+            if mutableField then
+                [ message "AOC001" "Mutable fields are forbidden in solutions." range ]
+            else
+                []
+        | :? SynExpr as expression ->
+            match expression with
+            | SynExpr.ObjExpr(range = range) -> [ message "AOC006" "Object expressions are forbidden." range ]
+            | SynExpr.LongIdentSet(longDotId = SynLongIdent(id = [ receiver; property ])) when
+                solution && property.idText = "Value" && forwardedReceiver receiver.idRange
+                ->
+                []
+            | SynExpr.DotSet(targetExpr = receiver; longDotId = SynLongIdent(id = [ property ])) when
+                solution && property.idText = "Value" && forwardedReceiver receiver.Range
+                ->
+                []
+            | SynExpr.LongIdentSet _
+            | SynExpr.DotSet _
+            | SynExpr.Set _
+            | SynExpr.DotIndexedSet _
+            | SynExpr.NamedIndexedPropertySet _
+            | SynExpr.DotNamedIndexedPropertySet _ when solution ->
+                [ message "AOC002" "Assignment is forbidden in solutions." expression.Range ]
+            | _ -> []
+        | :? SynTypeDefnRepr as representation ->
+            match representation with
+            | SynTypeDefnRepr.ObjectModel(range = range) ->
+                [
+                    message "AOC006" "Classes, interfaces and type extensions are forbidden." range
+                ]
+            | SynTypeDefnRepr.Simple(simpleRepr = SynTypeDefnSimpleRepr.General(range = range)) ->
+                [ message "AOC006" "Object models are forbidden." range ]
+            | _ -> []
+        | :? SynMemberDefn as memberDefinition ->
+            match memberDefinition with
+            | SynMemberDefn.Member(range = range)
+            | SynMemberDefn.GetSetMember(range = range)
+            | SynMemberDefn.AbstractSlot(range = range)
+            | SynMemberDefn.AutoProperty(range = range)
+            | SynMemberDefn.Interface(range = range)
+            | SynMemberDefn.Inherit(range = range)
+            | SynMemberDefn.ImplicitInherit(range = range) ->
+                [ message "AOC006" "Authored members and inheritance are forbidden." range ]
+            | _ -> []
+        | _ -> [])
+
+
+let private symbolMessages solution (uses: FSharpSymbolUse list) =
+    if not solution then
+        []
+    else
+        uses
+        |> List.choose (fun usage ->
+            if usage.IsFromDefinition then
+                None
+            else
+                match usage.Symbol with
+                | :? FSharpEntity as entity when collection entity ->
+                    Some(message "AOC003" "Mutable collections are forbidden in solutions." usage.Range)
+                | :? FSharpMemberOrFunctionOrValue as symbol ->
+                    let name = symbol.FullName
+
+                    let owner =
+                        symbol.DeclaringEntity
+                        |> Option.map (fun entity -> entity.FullName)
+                        |> Option.defaultValue ""
+
+                    if symbol.DeclaringEntity |> Option.exists collection then
+                        Some(message "AOC003" "Mutable collections are forbidden in solutions." usage.Range)
+                    elif
+                        [
+                            "Microsoft.FSharp.Collections.ArrayModule"
+                            "Microsoft.FSharp.Collections.Array2DModule"
+                        ]
+                        |> List.contains owner
+                        && [ "Set"; "Fill"; "Blit"; "CopyTo"; "ZeroCreate" ]
+                           |> List.contains symbol.CompiledName
+                    then
+                        Some(message "AOC003" "In-place array operations and zeroCreate are forbidden." usage.Range)
+                    elif
+                        [
+                            "Microsoft.FSharp.Collections.List.head"
+                            "Microsoft.FSharp.Collections.Seq.head"
+                            "Microsoft.FSharp.Collections.List.item"
+                            "Microsoft.FSharp.Core.Operators.failwith"
+                            "Microsoft.FSharp.Core.Operators.raise"
+                            "Microsoft.FSharp.Core.Operators.invalidArg"
+                        ]
+                        |> List.contains name
+                    then
+                        Some(message "AOC004" "Partial functions are forbidden; return Option or Result." usage.Range)
+                    elif
+                        owner = "Microsoft.FSharp.Core.Operators"
+                        && [ "op_PipeLeft"; "op_ComposeLeft" ] |> List.contains symbol.CompiledName
+                    then
+                        Some(message "AOC005" "Use forward pipelines and composition." usage.Range)
+                    else
+                        None
+                | _ -> None)
+
+
 /// Enforce functional solution rules and forbid authored object models in production files.
 /// Exploration modules are exempt from solution rules, but not object-model rules.
 [<CliAnalyzer("Aoc.Discipline", "Enforce repository functional programming rules")>]
@@ -180,165 +327,8 @@ let analyze: Analyzer<CliContext> =
                 let documentationMessages = if libraryDocumentation then documentation uses else []
                 // Only the second tuple binding of FParsec's real factory may be assigned.
                 // Match the reference's declaration identity, so shadowed lookalikes are rejected.
-                let forwarded =
-                    syntax
-                    |> List.choose (function
-                        | :? SynBinding as binding ->
-                            let (SynBinding(headPat = pattern; expr = expression)) = binding
-
-                            match bindingPattern pattern with
-                            | SynPat.Tuple(elementPats = [ _; SynPat.Named(ident = SynIdent(reference, _)) ]) when
-                                uses
-                                |> List.exists (fun usage ->
-                                    (calledFunction expression
-                                     |> Option.exists (fun range -> contains range usage.Range))
-                                    && match usage.Symbol with
-                                       | :? FSharpMemberOrFunctionOrValue as symbol ->
-                                           symbol.FullName = "FParsec.Primitives.createParserForwardedToRef"
-                                       | _ -> false)
-                                ->
-                                Some reference.idRange
-                            | _ -> None
-                        | _ -> None)
-
-                let forwardedReceiver (receiverRange: range) =
-                    uses
-                    |> List.exists (fun usage ->
-                        receiverRange = usage.Range
-                        && match usage.Symbol.DeclarationLocation with
-                           | Some declaration -> forwarded |> List.contains declaration
-                           | None -> false)
-
-                let syntaxMessages =
-                    syntax
-                    |> List.collect (function
-                        | :? SynBinding as binding when solution ->
-                            let (SynBinding(isMutable = mutableBinding; headPat = pattern)) = binding
-
-                            if mutableBinding then
-                                [
-                                    message "AOC001" "Mutable bindings are forbidden in solutions." pattern.Range
-                                ]
-                            else
-                                []
-                        | :? SynField as field when solution ->
-                            let (SynField(isMutable = mutableField; range = range)) = field
-
-                            if mutableField then
-                                [ message "AOC001" "Mutable fields are forbidden in solutions." range ]
-                            else
-                                []
-                        | :? SynExpr as expression ->
-                            match expression with
-                            | SynExpr.ObjExpr(range = range) ->
-                                [ message "AOC006" "Object expressions are forbidden." range ]
-                            | SynExpr.LongIdentSet(longDotId = SynLongIdent(id = [ receiver; property ])) when
-                                solution && property.idText = "Value" && forwardedReceiver receiver.idRange
-                                ->
-                                []
-                            | SynExpr.DotSet(targetExpr = receiver; longDotId = SynLongIdent(id = [ property ])) when
-                                solution && property.idText = "Value" && forwardedReceiver receiver.Range
-                                ->
-                                []
-                            | SynExpr.LongIdentSet _
-                            | SynExpr.DotSet _
-                            | SynExpr.Set _
-                            | SynExpr.DotIndexedSet _
-                            | SynExpr.NamedIndexedPropertySet _
-                            | SynExpr.DotNamedIndexedPropertySet _ when solution ->
-                                [ message "AOC002" "Assignment is forbidden in solutions." expression.Range ]
-                            | _ -> []
-                        | :? SynTypeDefnRepr as representation ->
-                            match representation with
-                            | SynTypeDefnRepr.ObjectModel(range = range) ->
-                                [
-                                    message "AOC006" "Classes, interfaces and type extensions are forbidden." range
-                                ]
-                            | SynTypeDefnRepr.Simple(simpleRepr = SynTypeDefnSimpleRepr.General(range = range)) ->
-                                [ message "AOC006" "Object models are forbidden." range ]
-                            | _ -> []
-                        | :? SynMemberDefn as memberDefinition ->
-                            match memberDefinition with
-                            | SynMemberDefn.Member(range = range)
-                            | SynMemberDefn.GetSetMember(range = range)
-                            | SynMemberDefn.AbstractSlot(range = range)
-                            | SynMemberDefn.AutoProperty(range = range)
-                            | SynMemberDefn.Interface(range = range)
-                            | SynMemberDefn.Inherit(range = range)
-                            | SynMemberDefn.ImplicitInherit(range = range) ->
-                                [ message "AOC006" "Authored members and inheritance are forbidden." range ]
-                            | _ -> []
-                        | _ -> [])
-
-                let symbolMessages =
-                    if not solution then
-                        []
-                    else
-                        uses
-                        |> List.choose (fun usage ->
-                            if usage.IsFromDefinition then
-                                None
-                            else
-                                match usage.Symbol with
-                                | :? FSharpEntity as entity when collection entity ->
-                                    Some(
-                                        message "AOC003" "Mutable collections are forbidden in solutions." usage.Range
-                                    )
-                                | :? FSharpMemberOrFunctionOrValue as symbol ->
-                                    let name = symbol.FullName
-
-                                    let owner =
-                                        symbol.DeclaringEntity
-                                        |> Option.map (fun entity -> entity.FullName)
-                                        |> Option.defaultValue ""
-
-                                    if symbol.DeclaringEntity |> Option.exists collection then
-                                        Some(
-                                            message
-                                                "AOC003"
-                                                "Mutable collections are forbidden in solutions."
-                                                usage.Range
-                                        )
-                                    elif
-                                        [
-                                            "Microsoft.FSharp.Collections.ArrayModule"
-                                            "Microsoft.FSharp.Collections.Array2DModule"
-                                        ]
-                                        |> List.contains owner
-                                        && [ "Set"; "Fill"; "Blit"; "CopyTo"; "ZeroCreate" ]
-                                           |> List.contains symbol.CompiledName
-                                    then
-                                        Some(
-                                            message
-                                                "AOC003"
-                                                "In-place array operations and zeroCreate are forbidden."
-                                                usage.Range
-                                        )
-                                    elif
-                                        [
-                                            "Microsoft.FSharp.Collections.List.head"
-                                            "Microsoft.FSharp.Collections.Seq.head"
-                                            "Microsoft.FSharp.Collections.List.item"
-                                            "Microsoft.FSharp.Core.Operators.failwith"
-                                            "Microsoft.FSharp.Core.Operators.raise"
-                                            "Microsoft.FSharp.Core.Operators.invalidArg"
-                                        ]
-                                        |> List.contains name
-                                    then
-                                        Some(
-                                            message
-                                                "AOC004"
-                                                "Partial functions are forbidden; return Option or Result."
-                                                usage.Range
-                                        )
-                                    elif
-                                        owner = "Microsoft.FSharp.Core.Operators"
-                                        && [ "op_PipeLeft"; "op_ComposeLeft" ] |> List.contains symbol.CompiledName
-                                    then
-                                        Some(message "AOC005" "Use forward pipelines and composition." usage.Range)
-                                    else
-                                        None
-                                | _ -> None)
+                let syntaxMessages = syntaxMessages solution (forwardedReceiver syntax uses) syntax
+                let symbolMessages = symbolMessages solution uses
 
                 let! optionMessages =
                     if solution then

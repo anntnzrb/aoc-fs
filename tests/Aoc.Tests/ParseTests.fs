@@ -31,11 +31,13 @@ let tests =
                 actual = Result.Ok values)
 
             testCase "traverse preserves source order" (fun () ->
-                let actual = [ 1; 2; 3 ] |> Aoc.Parse.traverse (fun value -> Result.Ok(value * 2))
+                let actual: Result<int list, unit> =
+                    [ 1; 2; 3 ] |> Aoc.Parse.traverse (fun value -> Result.Ok(value * 2))
+
                 Expect.equal actual (Result.Ok [ 2; 4; 6 ]) "Parsed values remain in source order")
 
             testCase "traverse accepts an empty source" (fun () ->
-                let actual =
+                let actual: Result<int list, unit> =
                     Seq.empty<int> |> Aoc.Parse.traverse (fun value -> Result.Ok(value * 2))
 
                 Expect.equal actual (Result.Ok []) "An empty source has no parsed values")
@@ -59,7 +61,7 @@ let tests =
             for fail in [ false; true ] do
                 testCase $"traverse disposes the source when failure is %b{fail}" (fun () ->
                     // Disposal is a side effect, so this test needs a mutable observer.
-                    let mutable disposed = false
+                    let disposed = ref false
 
                     let source =
                         seq {
@@ -67,7 +69,7 @@ let tests =
                                 yield 1
                                 yield 2
                             finally
-                                disposed <- true
+                                disposed.Value <- true
                         }
 
                     let parse value =
@@ -76,7 +78,7 @@ let tests =
                     let actual = source |> Aoc.Parse.traverse parse
                     let expected = if fail then Result.Error 1 else Result.Ok [ 1; 2 ]
                     Expect.equal actual expected "The traversal returns the expected result"
-                    Expect.isTrue disposed "The source's finally block runs")
+                    Expect.isTrue disposed.Value "The source's finally block runs")
 
             testCase "run returns a parsed value" (fun () ->
                 let actual = Aoc.Parse.run (pint32 .>> eof) "42"

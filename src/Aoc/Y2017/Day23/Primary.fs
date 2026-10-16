@@ -55,11 +55,13 @@ let private factorLoops instructions =
                         Set(g7, Read d3)
                         Sub(g8, Read b2)
                         Jump(Read g9, Literal -13L) ] when
-                        [ d1; d2; d3 ] |> List.forall ((=) d)
-                        && [ e1; e2; e3 ] |> List.forall ((=) e)
-                        && [ g1; g2; g3; g4; g5; g6; g7; g8; g9 ] |> List.forall ((=) g)
-                        && b1 = b
-                        && b2 = b
+                        [
+                            d, [ d1; d2; d3 ]
+                            e, [ e1; e2; e3 ]
+                            g, [ g1; g2; g3; g4; g5; g6; g7; g8; g9 ]
+                            b, [ b1; b2 ]
+                        ]
+                        |> List.forall (fun (register, aliases) -> aliases |> List.forall ((=) register))
                         && Set.count (Set.ofList [ d; e; g; b; f ]) = 5
                         ->
                         let loop =

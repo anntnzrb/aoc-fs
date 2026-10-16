@@ -108,6 +108,5 @@ let cellZipperTests =
                         "every new cell receives one"
 
                     Expect.equal (CellZipper.solve text) (Primary.solve text) "word boundaries")
-            testProperty "malformed blueprints return Error" (fun (text: string) ->
-                Primary.solve ("x" + text) |> Result.isError)
+            testProperty "malformed blueprints return Error" ((+) "x" >> Primary.solve >> Result.isError)
         ]

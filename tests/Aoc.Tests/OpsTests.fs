@@ -511,10 +511,10 @@ b</code></pre><ul><li>one</li><li>two &quot;quoted&quot;</li></ul><p>Your <em>pu
                             let path = Path.Combine(day, "Recursive.fs")
 
                             try
-                                Directory.CreateDirectory day |> ignore
+                                Directory.CreateDirectory day |> ignore<DirectoryInfo>
 
                                 if directory then
-                                    Directory.CreateDirectory path |> ignore
+                                    Directory.CreateDirectory path |> ignore<DirectoryInfo>
                                 else
                                     File.WriteAllText(path, "preserve")
 

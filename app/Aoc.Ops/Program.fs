@@ -24,7 +24,7 @@ let private require =
 
 let private atomicWrite (path: string) (text: string) =
     let parent = Path.GetDirectoryName path |> Option.ofObj |> Option.defaultValue "."
-    Directory.CreateDirectory parent |> ignore
+    Directory.CreateDirectory parent |> ignore<DirectoryInfo>
     let temporary = path + ".tmp"
 
     try
@@ -78,8 +78,7 @@ let private scan root =
     files @ years
 
 let private format root paths =
-    let start = ProcessStartInfo("dotnet")
-    start.WorkingDirectory <- root
+    let start = ProcessStartInfo("dotnet", WorkingDirectory = root)
 
     for argument in [ "tool"; "run"; "fantomas" ] @ paths do
         start.ArgumentList.Add argument
@@ -93,6 +92,109 @@ let private format root paths =
 
     if child.ExitCode <> 0 then
         failwithf "Fantomas exited %d" child.ExitCode
+
+[<TailCall>]
+let rec private checkDirectory path =
+    if File.Exists path then
+        failwithf "file blocks directory: %s" path
+    elif not (Directory.Exists path) then
+        match Path.GetDirectoryName path |> Option.ofObj with
+        | Some parent when parent <> path && parent.Length > 0 -> checkDirectory parent
+        | _ -> ()
+
+let private writeScaffold root writes fixture =
+    // Check every destination, including ancestor collisions, before the first write.
+    for path, _ in writes do
+        let target = Path.Combine(root, path)
+
+        if
+            Directory.Exists target
+            || File.Exists(target + ".tmp")
+            || Directory.Exists(target + ".tmp")
+        then
+            failwithf "blocked scaffold path: %s" path
+
+        Path.GetDirectoryName target |> Option.ofObj |> Option.iter checkDirectory
+
+        if File.Exists target then
+            use stream = File.Open(target, FileMode.Open, FileAccess.Write, FileShare.Read)
+            ()
+
+    checkDirectory fixture
+
+    let originals =
+        writes
+        |> List.map (fun (path, _) ->
+            let target = Path.Combine(root, path)
+
+            target,
+            if File.Exists target then
+                Some(File.ReadAllBytes target)
+            else
+                None)
+
+    let rec missingDirectories path =
+        if Directory.Exists path then
+            []
+        else
+            let parents =
+                Path.GetDirectoryName path
+                |> Option.ofObj
+                |> Option.map missingDirectories
+                |> Option.defaultValue []
+
+            path :: parents
+
+    let directories =
+        fixture
+        :: (originals
+            |> List.choose (fun (path, _) -> Path.GetDirectoryName path |> Option.ofObj))
+        |> List.collect missingDirectories
+        |> List.distinct
+        |> List.sortByDescending String.length
+
+    try
+        for path, text in writes do
+            atomicWrite (Path.Combine(root, path)) text
+
+        Directory.CreateDirectory fixture |> ignore<DirectoryInfo>
+
+        writes
+        |> List.choose (fun (path, _) ->
+            if path.EndsWith(".fs", StringComparison.Ordinal) then
+                Some path
+            else
+                None)
+        |> format root
+    with originalError ->
+        let rollbackErrors = ResizeArray<exn>()
+
+        let restore action =
+            try
+                action ()
+            with error ->
+                rollbackErrors.Add error
+
+        for path, content in originals do
+            restore (fun () ->
+                match content with
+                | Some bytes -> File.WriteAllBytes(path, bytes)
+                | None ->
+                    if File.Exists path then
+                        File.Delete path)
+
+        for directory in directories do
+            restore (fun () ->
+                if
+                    Directory.Exists directory
+                    && Directory.GetFileSystemEntries(directory).Length = 0
+                then
+                    Directory.Delete directory)
+
+        if rollbackErrors.Count > 0 then
+            raise (AggregateException("scaffold rollback failed", originalError :: List.ofSeq rollbackErrors))
+
+        reraise ()
 
 /// Creates a primary or exploration, refusing collisions and rolling back failed writes or formatting.
 let scaffold root year day exploration =
@@ -116,9 +218,9 @@ let scaffold root year day exploration =
             failwith "refusing to overwrite an existing exploration path"
 
         if
-            not (File.Exists(at (dayPath + "/Primary.fs")))
-            || not (File.Exists(at (dayPath + "/Input.fs")))
-            || not (File.Exists(at testPath))
+            [ dayPath + "/Primary.fs"; dayPath + "/Input.fs"; testPath ]
+            |> List.forall (at >> File.Exists)
+            |> not
         then
             failwith "exploration requires an existing primary, input and day tests"
 
@@ -176,103 +278,7 @@ let scaffold root year day exploration =
 
     let writes = created @ regenerated
     let fixture = at (sprintf "fixtures/%d/%02d" year day)
-    // Check every destination, including ancestor collisions, before the first write.
-    let rec checkDirectory path =
-        if File.Exists path then
-            failwithf "file blocks directory: %s" path
-        elif not (Directory.Exists path) then
-            match Path.GetDirectoryName path |> Option.ofObj with
-            | Some parent when parent <> path && parent <> "" -> checkDirectory parent
-            | _ -> ()
-
-    for path, _ in writes do
-        let target = at path
-
-        if
-            Directory.Exists target
-            || File.Exists(target + ".tmp")
-            || Directory.Exists(target + ".tmp")
-        then
-            failwithf "blocked scaffold path: %s" path
-
-        Path.GetDirectoryName target |> Option.ofObj |> Option.iter checkDirectory
-
-        if File.Exists target then
-            use stream = File.Open(target, FileMode.Open, FileAccess.Write, FileShare.Read)
-            ()
-
-    checkDirectory fixture
-
-    let originals =
-        writes
-        |> List.map (fun (path, _) ->
-            let target = at path
-
-            target,
-            if File.Exists target then
-                Some(File.ReadAllBytes target)
-            else
-                None)
-
-    let rec missingDirectories path =
-        if Directory.Exists path then
-            []
-        else
-            let parents =
-                Path.GetDirectoryName path
-                |> Option.ofObj
-                |> Option.map missingDirectories
-                |> Option.defaultValue []
-
-            path :: parents
-
-    let directories =
-        fixture
-        :: (originals
-            |> List.choose (fun (path, _) -> Path.GetDirectoryName path |> Option.ofObj))
-        |> List.collect missingDirectories
-        |> List.distinct
-        |> List.sortByDescending String.length
-
-    try
-        for path, text in writes do
-            atomicWrite (at path) text
-
-        Directory.CreateDirectory fixture |> ignore
-
-        writes
-        |> List.map fst
-        |> List.filter (fun path -> path.EndsWith(".fs", StringComparison.Ordinal))
-        |> format root
-    with originalError ->
-        let rollbackErrors = ResizeArray<exn>()
-
-        let restore action =
-            try
-                action ()
-            with error ->
-                rollbackErrors.Add error
-
-        for path, content in originals do
-            restore (fun () ->
-                match content with
-                | Some bytes -> File.WriteAllBytes(path, bytes)
-                | None ->
-                    if File.Exists path then
-                        File.Delete path)
-
-        for directory in directories do
-            restore (fun () ->
-                if
-                    Directory.Exists directory
-                    && Directory.GetFileSystemEntries(directory).Length = 0
-                then
-                    Directory.Delete directory)
-
-        if rollbackErrors.Count > 0 then
-            raise (AggregateException("scaffold rollback failed", originalError :: List.ofSeq rollbackErrors))
-
-        reraise ()
+    writeScaffold root writes fixture
 
 let private run root =
     function
@@ -300,7 +306,7 @@ let private run root =
             |> Seq.collect (fun path -> Doc.check (Path.GetRelativePath(root, path)) (File.ReadAllText path))
             |> Seq.toList
 
-        violations |> List.iter (printfn "%s")
+        violations |> List.iter (fun violation -> printfn "%s" violation)
         if List.isEmpty violations then 0 else 1
     | Command.Fetch(year, day, force) ->
         let path = Path.Combine(root, "inputs", string year, sprintf "day%02d.txt" day)

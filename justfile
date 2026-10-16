@@ -31,6 +31,7 @@ fmt:
 check:
     dotnet build -c Release
     just analyze
+    just lint
     just doc
     dotnet test
     dotnet tool run fantomas --check .
@@ -38,7 +39,8 @@ check:
 doc:
     dotnet run --project app/Aoc.Ops -c Release -- doc
 
-# The scoped repository analyzer delegates option safety to Ionide; unrelated
-# optional style suggestions are not part of this repository's rule set.
+lint:
+    dotnet fsharplint lint --lint-config fsharplint.json aoc-fs.slnx
+
 analyze:
     dotnet fsharp-analyzers --project analyzers/Aoc.Analyzers/Aoc.Analyzers.fsproj src/Aoc/Aoc.fsproj app/Aoc.Cli/Aoc.Cli.fsproj app/Aoc.Ops/Aoc.Ops.fsproj tests/Aoc.Tests/Aoc.Tests.fsproj tests/Aoc.Analyzers.Tests/Aoc.Analyzers.Tests.fsproj --analyzers-path analyzers/Aoc.Analyzers/bin/Release/net10.0 --include-analyzers Aoc.Discipline --configuration Release --fail-on-type-errors --treat-as-error '*'

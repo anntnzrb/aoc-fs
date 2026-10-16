@@ -7,7 +7,7 @@ open Aoc
 open Aoc.Solution
 
 let check (expected: string) (rendered: string) : Result<unit, string> =
-    if expected = "" then
+    if expected.Length = 0 then
         Error "empty expectation"
     elif not (expected.EndsWith('\n')) then
         Error "unterminated expectation"

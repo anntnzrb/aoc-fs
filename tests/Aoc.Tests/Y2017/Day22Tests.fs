@@ -107,6 +107,5 @@ let tileTests =
 
                  FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun (text, bursts) ->
                      Primary.solveWith bursts bursts text = Mutable.solveWith bursts bursts text))
-            testProperty "unknown cells return Error" (fun (text: string) ->
-                Primary.solve ("x" + text) |> Result.isError)
+            testProperty "unknown cells return Error" ((+) "x" >> Primary.solve >> Result.isError)
         ]
