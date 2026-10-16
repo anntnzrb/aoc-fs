@@ -1,16 +1,14 @@
-/// Domain model and parser for this puzzle.
+/// Domain model and parser for the disk's hash key.
 module Aoc.Y2017.Day14.Input
 
-/// The input lines, in their original order.
-type Puzzle =
-    {
-        /// Lines from the puzzle input.
-        Lines: string list
-    }
+/// The ASCII key from which row hash inputs are formed.
+type Key = Key of string
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// Parses one nonempty ASCII key, removing surrounding whitespace and rejecting embedded line breaks.
+let parse (input: string) : Result<Key, string> =
+    match input.Trim() with
+    | "" -> Error "empty disk key"
+    | key ->
+        match key |> Seq.forall (fun c -> System.Char.IsAscii c && c <> '\r' && c <> '\n') with
+        | true -> Ok(Key key)
+        | false -> Error "disk key must be a single ASCII line"
