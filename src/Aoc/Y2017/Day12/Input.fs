@@ -21,6 +21,4 @@ let parse (input: string) : Result<Program list, string> =
         id .>> pstring " <-> " .>>. sepBy1 id (pstring ", ")
         |>> fun (id, connections) -> { Id = id; Connections = connections }
 
-    match run (sepEndBy1 program newline .>> eof) input with
-    | Success(programs, _, _) -> Result.Ok programs
-    | Failure(message, _, _) -> Result.Error message
+    Aoc.Parse.run (sepEndBy1 program newline .>> eof) input
