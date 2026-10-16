@@ -523,7 +523,7 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
 | Aggregate | Tuple folds, `countBy`, `sumBy` |
 | Search | `Set`, `Map`, explicit frontier |
 | Combinatorics | List expressions, recursion over choices |
-| Hot loop | Tail-recursive `loop` with immutable parameters; read-only arrays |
+| Hot loop | Module-level `let rec private` loop that captures nothing, state in parameters; read-only arrays |
 
 ## Commands
 
@@ -637,6 +637,12 @@ and `AOC` row exists except Doc check, Bench and Record, which are *planned*.
   test checks it with `TryParseAdd`. Offline tests never built a real request,
   so both bugs above
   surfaced only on the first live `fetch`.
+- A `let rec loop` nested in a function that captures that function's
+  arguments compiles to a closure object; when the outer function runs per
+  step (2017 day 15: ~80M calls), allocating it made the immutable version
+  5x slower, confirmed in the IL (`newobj` per call). Module-level
+  `let rec private` functions that take all state as parameters capture
+  nothing and run as fast as the mutable loop.
 - `Seq.forall` and `List.forall` short-circuit: running every day and then
   combining results needs `List.map` first, or later days are silently
   skipped.
