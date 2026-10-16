@@ -147,6 +147,12 @@ let solvers: Map<Key, Solver> =
         Day22.Primary.solve
         {
             Year = 2017
+            Day = 22
+            Variant = Exploration "mutable"
+        },
+        Day22.Mutable.solve
+        {
+            Year = 2017
             Day = 23
             Variant = Primary
         },
