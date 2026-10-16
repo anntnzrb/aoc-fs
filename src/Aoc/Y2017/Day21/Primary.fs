@@ -1,5 +1,5 @@
 // approach: index every rule's rotations and reflections, then replace square blocks and reassemble the image
-// cost: O(r log r + a log r) time, O(r + a) memory for r rules and a final pixels; one input pass and one image traversal per iteration
+// cost: O(r log r + a log r) time, O(r + a) memory for r rules and a final pixels; one input pass, block reads and output writes per iteration, two counting passes
 // trade: a dense grid follows the geometric rules directly; a symmetry index avoids searching rules for every block
 module Aoc.Y2017.Day21.Primary
 
@@ -33,43 +33,39 @@ let private index rules =
             let flip (image: bool[,]) =
                 Array2D.init size size (fun y x -> image[y, size - 1 - x])
 
-            [ 0..3 ]
-            |> List.fold
-                (fun (lookup, image) _ ->
-                    let lookup =
-                        lookup
-                        |> Map.add (key size 0 0 image) target
-                        |> Map.add (key size 0 0 (flip image)) target
-
-                    lookup, rotate image)
-                (lookup, source)
-            |> fst)
+            source
+            |> Seq.unfold (fun image -> Some(image, rotate image))
+            |> Seq.take 4
+            |> Seq.fold
+                (fun lookup image ->
+                    lookup
+                    |> Map.add (key size 0 0 image) target
+                    |> Map.add (key size 0 0 (flip image)) target)
+                lookup)
         Map.empty
 
 let private enhance (lookup: Map<int * int, bool[,]>) (image: bool[,]) =
     let size = Array2D.length1 image
     let block = if size % 2 = 0 then 2 else 3
     let blocks = size / block
-    let output = Array2D.zeroCreate<bool> (blocks * (block + 1)) (blocks * (block + 1))
 
     [
         for y in 0 .. blocks - 1 do
             for x in 0 .. blocks - 1 -> y, x
     ]
-    |> List.fold
-        (fun result (y, x) ->
-            result
-            |> Result.bind (fun () ->
-                match lookup |> Map.tryFind (key block (y * block) (x * block) image) with
-                | None -> Error "no enhancement rule matches a block"
-                | Some target ->
-                    for dy in 0..block do
-                        for dx in 0..block do
-                            output[y * (block + 1) + dy, x * (block + 1) + dx] <- target[dy, dx]
+    |> Aoc.Parse.traverse (fun (y, x) ->
+        match lookup |> Map.tryFind (key block (y * block) (x * block) image) with
+        | None -> Error "no enhancement rule matches a block"
+        | Some target -> Ok(y, x, target))
+    |> Result.map (fun targets ->
+        let output = Array2D.zeroCreate<bool> (blocks * (block + 1)) (blocks * (block + 1))
 
-                    Ok()))
-        (Ok())
-    |> Result.map (fun () -> output)
+        for y, x, target in targets do
+            for dy in 0..block do
+                for dx in 0..block do
+                    output[y * (block + 1) + dy, x * (block + 1) + dx] <- target[dy, dx]
+
+        output)
 
 let private count image =
     let mutable total = 0
@@ -88,13 +84,15 @@ let solve: Solver =
         |> Result.bind (fun rules ->
             let lookup = index rules
             let start = grid [ ".#."; "..#"; "###" ]
+            let part1Iterations = 5
+            let part2Iterations = 18
 
-            [ 1..18 ]
-            |> List.fold
-                (fun result iteration ->
-                    result
-                    |> Result.bind (fun (image, part1) ->
-                        enhance lookup image
-                        |> Result.map (fun next -> next, if iteration = 5 then count next else part1)))
-                (Ok(start, 0))
-            |> Result.map (fun (image, part1) -> Answers.both (string part1) (count image |> string)))
+            let images =
+                [ 1..part2Iterations ]
+                |> Seq.scan (fun image _ -> image |> Result.bind (enhance lookup)) (Ok start)
+                |> Seq.toArray
+
+            images[part1Iterations]
+            |> Result.bind (fun part1 ->
+                images[part2Iterations]
+                |> Result.map (fun part2 -> Answers.both (count part1 |> string) (count part2 |> string))))
