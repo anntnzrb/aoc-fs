@@ -9,15 +9,13 @@ type Captcha =
     }
 
 let private digit (c: char) : Result<int, string> =
-    match c with
-    | c when System.Char.IsAsciiDigit c -> Ok(int c - int '0')
-    | c -> Error $"not a digit: %A{c}"
+    if System.Char.IsAsciiDigit c then
+        Ok(int c - int '0')
+    else
+        Error $"not a digit: {c}"
 
 /// Parses one line of digits; rejects empty input and any non-digit.
 let parse (input: string) : Result<Captcha, string> =
     match input.Trim() with
     | "" -> Error "empty captcha"
-    | line ->
-        line
-        |> Seq.fold (fun acc c -> acc |> Result.bind (fun ds -> digit c |> Result.map (fun d -> d :: ds))) (Ok [])
-        |> Result.map (fun ds -> { Digits = List.rev ds })
+    | line -> line |> Aoc.Parse.traverse digit |> Result.map (fun ds -> { Digits = ds })
