@@ -41,4 +41,4 @@ let solve: Solver =
         input
         |> Input.parse
         |> Result.bind checksum
-        |> Result.map (fun answer -> Answers.both (string answer) "0")
+        |> Result.map (string >> Answers.part1)
