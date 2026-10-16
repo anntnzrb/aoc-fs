@@ -60,6 +60,7 @@
     <Compile Include="Y2017/Day24/Primary.fs" />
     <Compile Include="Y2017/Day25/Input.fs" />
     <Compile Include="Y2017/Day25/Primary.fs" />
+    <Compile Include="Y2017/Day25/CellZipper.fs" />
     <Compile Include="Y2017/Registry.fs" />
     <Compile Include="Registry.fs" />
   </ItemGroup>

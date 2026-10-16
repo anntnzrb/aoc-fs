@@ -1,6 +1,7 @@
 module Aoc.Tests.Y2017.Day25Tests
 
 open Expecto
+open FsCheck.FSharp
 open Aoc.Solution
 open Aoc.Y2017.Day25
 
@@ -58,4 +59,55 @@ let tests =
                 Expect.isError
                     (blueprint 0 "A" (rules "A" "A" "A" + "extra") |> Primary.solve)
                     "the shared parser adapter preserves eof enforcement")
+        ]
+
+
+
+[<Tests>]
+let cellZipperTests =
+    let inputs =
+        gen {
+            let! steps = FsCheck.FSharp.Gen.choose (0, 2000)
+            let! actions = FsCheck.FSharp.Gen.arrayOfLength 12 (FsCheck.FSharp.Gen.choose (0, 3))
+
+            let definition index name =
+                let branch value =
+                    let offset = index * 6 + value * 3
+                    let write = actions[offset] % 2
+                    let move = if actions[offset + 1] % 2 = 0 then "left" else "right"
+                    let next = if actions[offset + 2] % 2 = 0 then "A" else "B"
+                    $"  If the current value is {value}:\n    - Write the value {write}.\n    - Move one slot to the {move}.\n    - Continue with state {next}.\n"
+
+                $"In state {name}:\n" + branch 0 + branch 1
+
+            return blueprint steps "A" (definition 0 "A" + definition 1 "B")
+        }
+
+    testList
+        "Y2017.Day25.cellzipper"
+        [
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 80
+                }
+                "cell zipper agrees on generated blueprints"
+                (FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun text ->
+                    CellZipper.solve text = Primary.solve text))
+            testCase "both tape directions cross multiple words" (fun () ->
+                for direction in [ "left"; "right" ] do
+                    let definitions =
+                        (rules "A" "A" "A")
+                            .Replace("to the right", "to the " + direction)
+                            .Replace("to the left", "to the " + direction)
+
+                    let text = blueprint 257 "A" definitions
+
+                    Expect.equal
+                        (Primary.solve text |> Result.map Answers.render)
+                        (Ok "257\n")
+                        "every new cell receives one"
+
+                    Expect.equal (CellZipper.solve text) (Primary.solve text) "word boundaries")
+            testProperty "malformed blueprints return Error" (fun (text: string) ->
+                Primary.solve ("x" + text) |> Result.isError)
         ]
