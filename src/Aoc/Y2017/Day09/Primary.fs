@@ -1,6 +1,6 @@
-// approach: parse nested groups and canceled garbage, then sum each group's depth
+// approach: parse nested groups and canceled garbage, then sum group depths and remaining garbage lengths
 // cost: O(n) time and memory, one input pass and one traversal of the parsed tree
-// trade: a domain tree separates the grammar from scoring; an explicit frontier avoids recursive scoring
+// trade: a domain tree separates the grammar from both totals; an explicit frontier avoids recursive scoring
 module Aoc.Y2017.Day09.Primary
 
 open Aoc.Solution
@@ -11,13 +11,13 @@ let solve: Solver =
         input
         |> Input.parse
         |> Result.map (fun root ->
-            let score =
+            let score, garbage =
                 [ root, 1 ]
                 |> Seq.unfold (function
                     | [] -> None
-                    | (Garbage _, _) :: rest -> Some(0, rest)
+                    | (Garbage text, _) :: rest -> Some((0, text.Length), rest)
                     | (Group children, depth) :: rest ->
-                        Some(depth, (children |> List.map (fun child -> child, depth + 1)) @ rest))
-                |> Seq.sum
+                        Some((depth, 0), (children |> List.map (fun child -> child, depth + 1)) @ rest))
+                |> Seq.fold (fun (score, garbage) (depth, count) -> score + depth, garbage + count) (0, 0)
 
-            Answers.both (string score) "0")
+            Answers.both (string score) (string garbage))
