@@ -5,4 +5,13 @@ module Aoc.Y2017.Registry
 open Aoc.Solution
 
 /// Maps puzzle keys to pure solvers for this year.
-let solvers: Map<Key, Solver> = Map.empty
+let solvers: Map<Key, Solver> =
+    [
+        {
+            Year = 2017
+            Day = 1
+            Variant = Primary
+        },
+        Day01.Primary.solve
+    ]
+    |> Map.ofList
