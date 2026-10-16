@@ -1,16 +1,31 @@
 /// Domain model and parser for this puzzle.
 module Aoc.Y2017.Day15.Input
 
-/// The input lines, in their original order.
-type Puzzle =
-    {
-        /// Lines from the puzzle input.
-        Lines: string list
-    }
+open FParsec
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// A generator's starting value, below the modulus.
+type Seed = Seed of int64
+
+/// Starting values for the two generators.
+type Generators = { A: Seed; B: Seed }
+
+/// Parses the two labelled starting values in generator order.
+let parse (input: string) : Result<Generators, string> =
+    let seed =
+        pint64
+        >>= fun value ->
+            if value >= 0L && value < 2147483647L then
+                preturn (Seed value)
+            else
+                fail "starting value must be between zero and the modulus"
+
+    let generators =
+        pstring "Generator A starts with " >>. seed .>> newline
+        .>>. (pstring "Generator B starts with " >>. seed)
+        .>> optional newline
+        .>> eof
+        |>> fun (a, b) -> { A = a; B = b }
+
+    match run generators input with
+    | Success(generators, _, _) -> Result.Ok generators
+    | Failure(message, _, _) -> Result.Error message
