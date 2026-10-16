@@ -16,11 +16,4 @@ let private parseComponent (line: string) =
 let parse (input: string) : Result<Component list, string> =
     match input.Trim() with
     | "" -> Error "empty component inventory"
-    | text ->
-        text.Replace("\r\n", "\n").Split('\n')
-        |> Array.fold
-            (fun result line ->
-                result
-                |> Result.bind (fun components -> parseComponent line |> Result.map (fun c -> c :: components)))
-            (Ok [])
-        |> Result.map List.rev
+    | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse parseComponent
