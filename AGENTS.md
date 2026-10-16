@@ -234,8 +234,8 @@ registries), the `aoc` filter (`app/Aoc.Cli`), the fixture runner, and
 `new` for primaries and explorations, `bench` and `record`. Shared modules
 exist (`Aoc.KnotHash`, `Aoc.Parse`); `FsToolkit.ErrorHandling` and FsCheck are
 in use; the analyzer stage (`analyzers/Aoc.Analyzers`) and the doc check run
-in the gate. Not implemented: the publishing remote. Commands and checks marked *planned*
-do not exist yet. Never read another language's AoC repository: it contains
+in the gate. The publishing remote `origin` is configured. Commands and checks
+marked *planned* do not exist yet. Never read another language's AoC repository: it contains
 solutions.
 
 ## Critical repository rules
@@ -367,13 +367,21 @@ docs/journal/<YEAR>.md        learning log
 ## Toolchain
 
 - `flake.nix` builds the devshell from nixpkgs' `dotnet-sdk_10` (SDK 10.0.401
-  at the current lock) plus `just`. `flake.lock` pins the SDK; `global.json`
+  at the current lock) plus `just`, GNU `time`, `openssl` and `nixfmt`, and on
+  Linux `perf` and `util-linux` (`taskset`) for `bench`. Its `formatter` output
+  is nixfmt (`nix fmt`); `just fmt` formats `flake.nix` and the gate rejects
+  its drift. `nix flake check --no-build --all-systems` evaluates both target
+  systems. `.envrc` (`use flake`) enters the devshell through direnv. `flake.lock` pins the SDK; `global.json`
   pins the same SDK with `rollForward: latestFeature` and selects
   Microsoft.Testing.Platform as the test runner. Use the locked devshell
   (`nix develop`), not tools selected ad hoc. A tool enters the flake or the
   tool manifest with its first use.
 - `Directory.Packages.props` pins every package (CPM); projects reference
-  packages without versions. `FSharp.Core` is declared there and referenced
+  packages without versions. `RestorePackagesWithLockFile` tracks every
+  project's transitive closure in `packages.lock.json`, and the gate starts
+  with `dotnet restore --locked-mode`, so a drifting dependency fails it;
+  after a deliberate package change, regenerate the locks with `dotnet restore
+  --force-evaluate` and commit them. `FSharp.Core` is declared there and referenced
   explicitly by every project. Resolve a new or upgraded version only through
   listing-aware sources (`dotnet package search ID --exact-match`,
   `dotnet list package --outdated`), never the NuGet flat-container index.
@@ -384,7 +392,7 @@ docs/journal/<YEAR>.md        learning log
   enabled, `TreatWarningsAsErrors` true. Suppressions go there as `NoWarn`
   entries, each with an XML comment giving its reason; `#nowarn` in source is
   banned.
-- The gate (`just check`) runs, all as errors: the Release build; then, in
+- The gate (`just check`) runs, all as errors: a locked restore; the Release build; then, in
   parallel, the F# analyzer stage (`just analyze`), FSharpLint (`just lint`),
   the doc check and Fantomas format drift (`fantomas --check`;
   `.fantomasignore` skips `.cache/`); then `dotnet test`.
@@ -565,7 +573,7 @@ just puzzle YEAR DAY          # puzzles/<YEAR>/<DD>.txt (always refreshed)
 just submit YEAR DAY PART ANS # print the verdict; exit 0/1/2/3/4
 just run YEAR DAY [VARIANT]   # Release aoc on the cached input
 just test                     # dotnet test
-just fmt                      # fantomas .
+just fmt                      # fantomas . and nixfmt flake.nix
 just analyze                  # fsharp-analyzers over every project
 just lint                     # FSharpLint over the solution
 just doc                      # header tags and #nowarn (aoc-ops doc)
@@ -586,7 +594,7 @@ journal, benchmark CSVs and host snapshots), `repo` (`.gitignore`).
 ## Workflow operations
 
 MAIN is the main checkout; WORK is the worker checkout. The main branch is
-`main`; the publishing remote is `origin` (not configured yet). Generate
+`main`; the publishing remote is `origin`. Generate
 BRANCH as `work/<8-lowercase-hex>` using `openssl rand -hex 4`; choose WORK as
 a vacant sibling path `MAIN-<hex>`, and include both in the brief.
 

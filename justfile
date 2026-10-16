@@ -27,9 +27,11 @@ record year day:
 
 fmt:
     dotnet tool run fantomas .
+    nixfmt flake.nix
 
-# The gate: build once, run the read-only checks in parallel, then test.
+# The gate: enforce locks, build once, run read-only checks in parallel, then test.
 check:
+    dotnet restore --locked-mode
     dotnet build -c Release
     just static
     dotnet test
