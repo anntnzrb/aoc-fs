@@ -9,6 +9,7 @@
     <Compile Include="CalendarTests.fs" />
     <Compile Include="SolutionTests.fs" />
     <Compile Include="KnotHashTests.fs" />
+    <Compile Include="ParseTests.fs" />
     <Compile Include="OpsTests.fs" />
     <Compile Include="Y2017/Day01Tests.fs" />
     <Compile Include="Y2017/Day02Tests.fs" />
