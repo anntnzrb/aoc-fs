@@ -15,9 +15,5 @@ let parse (input: string) : Result<Instructions, string> =
     | "" -> Error "empty instruction list"
     | text ->
         text.Replace("\r\n", "\n").Split('\n')
-        |> Array.fold
-            (fun acc line ->
-                acc
-                |> Result.bind (fun values -> offset line |> Result.map (fun value -> value :: values)))
-            (Ok [])
-        |> Result.map (List.rev >> Instructions)
+        |> Aoc.Parse.traverse offset
+        |> Result.map Instructions
