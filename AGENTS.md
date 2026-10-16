@@ -300,7 +300,7 @@ docs/journal/2017.md          learning log
   then that year's `Registry.fs`, then the root `Registry.fs`. `new` owns
   these entries.
 - `Aoc.Solution` exports `Answers`, `Solver = string -> Result<Answers, string>`
-  and `render`. `Answers` holds part 1 and optional part 2 as `string`; its
+  and `Answers.render`. `Answers` holds part 1 and optional part 2 as `string`; its
   constructor is private, so solvers build it through `Answers.part1` and
   `Answers.both`. `render` emits one answer per line, part 1 first.
 - `Aoc.Registry` exports `Key` (year, day, variant), `Variant`
