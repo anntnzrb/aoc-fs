@@ -1,16 +1,44 @@
-/// Domain model and parser for this puzzle.
+/// Domain model and parser for square-pixel enhancement rules.
 module Aoc.Y2017.Day21.Input
 
-/// The input lines, in their original order.
-type Puzzle =
+/// One enhancement rule, with top-down rows and a target one pixel wider.
+type Rule =
     {
-        /// Lines from the puzzle input.
-        Lines: string list
+        Source: string list
+        Target: string list
     }
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// Parses square patterns of on/off pixels and rules from size two or three.
+let parse (input: string) : Result<Rule list, string> =
+    let pattern (text: string) =
+        let rows = text.Split('/') |> Array.toList
+        let size = rows.Length
+
+        if
+            rows
+            |> List.forall (fun row -> row.Length = size && row |> Seq.forall (fun c -> c = '.' || c = '#'))
+        then
+            Ok rows
+        else
+            Error "expected a square pattern of '.' and '#'"
+
+    let rule (line: string) =
+        match line.Split(" => ") with
+        | [| source; target |] ->
+            pattern source
+            |> Result.bind (fun source ->
+                pattern target
+                |> Result.bind (fun target ->
+                    match source.Length, target.Length with
+                    | 2, 3
+                    | 3, 4 -> Ok { Source = source; Target = target }
+                    | _ -> Error "expected a 2-to-3 or 3-to-4 enhancement"))
+        | _ -> Error "expected source => target"
+
+    input.Trim().Split('\n')
+    |> Array.fold
+        (fun result line ->
+            result
+            |> Result.bind (fun rules -> rule (line.Trim()) |> Result.map (fun next -> next :: rules)))
+        (Ok [])
+    |> Result.map List.rev
