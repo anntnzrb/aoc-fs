@@ -233,8 +233,8 @@ registries), the `aoc` filter (`app/Aoc.Cli`), the fixture runner, and
 `aoc-ops` (`app/Aoc.Ops`) with `fetch`, `puzzle`, `submit` (verified live) and
 `new` for primaries and explorations, `bench` and `record`. Shared modules
 exist (`Aoc.KnotHash`, `Aoc.Parse`); `FsToolkit.ErrorHandling` and FsCheck are
-in use; the analyzer stage (`analyzers/Aoc.Analyzers`) runs in the gate. Not
-implemented: `doc` and the publishing remote. Commands and checks marked *planned*
+in use; the analyzer stage (`analyzers/Aoc.Analyzers`) and the doc check run
+in the gate. Not implemented: the publishing remote. Commands and checks marked *planned*
 do not exist yet. Never read another language's AoC repository: it contains
 solutions.
 
@@ -386,7 +386,7 @@ docs/journal/<YEAR>.md        learning log
   banned.
 - The gate runs, all as errors: Release build of the solution, `dotnet test`,
   Fantomas format drift (`fantomas --check`; `.fantomasignore` skips `.cache/`), the
-  F# analyzer stage (`just analyze`) and (*planned*) the doc check. Checked arithmetic (`CheckForOverflowUnderflow`) is
+  F# analyzer stage (`just analyze`) and the doc check (`just doc`). Checked arithmetic (`CheckForOverflowUnderflow`) is
   on for Debug builds and the test run, the closest equivalent of an integer
   sanitizer; Release builds keep unchecked arithmetic.
 - .NET code is memory-safe and the code rules require totality, so there is
@@ -404,11 +404,15 @@ docs/journal/<YEAR>.md        learning log
   AOC002 no assignment (except the FParsec forwarded-reference setter), AOC003
   no mutable collections or in-place array writes, AOC004 no banned partial
   functions, AOC005 no `<|` or `<<`, AOC006 no object model of our own (also in
-  `app/`). AOC001-AOC004 apply to `src/Aoc/` except exploration files. Its tests
+  `app/`), AOC007 a `///` doc comment on every public declaration of the
+  shared library modules (outside day directories). AOC001-AOC004 apply to
+  `src/Aoc/` except exploration files. Its tests
   live in `tests/Aoc.Analyzers.Tests`.
-- The doc check (*planned*, `Aoc.Ops doc`) runs in `just check` and checks
-  solution header tags, `///` coverage of public members outside day
-  directories, and no `#nowarn` in sources.
+- The doc check (`Aoc.Ops doc`, `just doc`) runs in `just check`: every
+  solution and exploration file's first three lines are `// approach:`,
+  `// cost:` and `// trade:` with text, and no source contains `#nowarn`. It
+  exits 1 listing `file:line` violations. `///` coverage is the analyzer's
+  AOC007, because it needs the compiler's view of visibility.
 
 ## Code
 
@@ -550,9 +554,10 @@ just run YEAR DAY [VARIANT]   # Release aoc on the cached input
 just test                     # dotnet test
 just fmt                      # fantomas .
 just analyze                  # fsharp-analyzers over every project
+just doc                      # header tags and #nowarn (aoc-ops doc)
 just bench YEAR DAY           # measure every variant (aoc-ops bench)
 just record YEAR DAY          # append canonical rows to bench/<YEAR>.csv
-just check                    # Release build, analyzers, test, format drift: the gate
+just check                    # Release build, analyzers, doc check, test, format drift: the gate
 ```
 
 Run them through `nix develop -c just ...`.
@@ -593,7 +598,7 @@ MAIN, never with `dotnet run` in MAIN, so concurrent builds do not share MAIN's
 
 `OPS` below is `nix develop -c dotnet run --project app/Aoc.Ops --`; `AOC` is
 `nix develop -c dotnet run --project app/Aoc.Cli -c Release --`. Every `OPS`
-and `AOC` row exists except Doc check, which is *planned*.
+and `AOC` row exists.
 
 | Operation | Command or location |
 | --- | --- |
@@ -605,7 +610,7 @@ and `AOC` row exists except Doc check, which is *planned*.
 | Test | `nix develop -c dotnet test`; offline operation tests, fixture comparisons, generated exploration properties. Require a nonzero executed test count. |
 | Run personal input | `AOC YEAR DAY < inputs/<YEAR>/day<DD>.txt`; append lowercase EXPLORATION for a variant. |
 | Build | `nix develop -c dotnet build -c Release`; every project, warnings as errors. |
-| Doc check | *planned*: `OPS doc`; included in `just check`. |
+| Doc check | `OPS doc`; included in `just check` (header tags, no `#nowarn`); `///` coverage is analyzer AOC007. |
 | Bench | `OPS bench YEAR DAY`; publish the optimized `Aoc.Cli`, check every registered variant against the primary on cached real input, then measure per the Measurement standard: five interleaved full/empty `instructions:u` pairs with perf, pinned with `taskset` on Linux; 10 timing runs (3 above 1 s/run), interleaved across variants. Startup includes .NET runtime and JIT; the empty-input run cancels it out of work, not out of wall or RSS. Reports medians/ranges and limitations; never writes records. |
 | Record | `OPS record YEAR DAY`; same measurement, requiring clean tracked main. Appends the shared schema to `bench/<YEAR>.csv` (`compiler` = SDK and runtime versions, `std` = F# language version), creates `bench/hosts/HOST.md` if absent. Unavailable metrics stay empty. |
 | Full gate | `nix develop -c just check`. |

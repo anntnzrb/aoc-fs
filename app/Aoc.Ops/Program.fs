@@ -276,6 +276,32 @@ let scaffold root year day exploration =
 
 let private run root =
     function
+    | Command.Doc ->
+        let rec sources directory =
+            seq {
+                yield! Directory.EnumerateFiles(directory, "*.fs")
+                yield! Directory.EnumerateFiles(directory, "*.fsi")
+                yield! Directory.EnumerateFiles(directory, "*.fsx")
+
+                for child in Directory.EnumerateDirectories directory do
+                    if
+                        not (
+                            [ "bin"; "obj"; ".cache" ]
+                            |> List.contains (Path.GetFileName child |> Option.ofObj |> Option.defaultValue "")
+                        )
+                    then
+                        yield! sources child
+            }
+
+        let violations =
+            [ "src"; "app"; "tests"; "analyzers" ]
+            |> Seq.collect (fun directory -> sources (Path.Combine(root, directory)))
+            |> Seq.sort
+            |> Seq.collect (fun path -> Doc.check (Path.GetRelativePath(root, path)) (File.ReadAllText path))
+            |> Seq.toList
+
+        violations |> List.iter (printfn "%s")
+        if List.isEmpty violations then 0 else 1
     | Command.Fetch(year, day, force) ->
         let path = Path.Combine(root, "inputs", string year, sprintf "day%02d.txt" day)
 

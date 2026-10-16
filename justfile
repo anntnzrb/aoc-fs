@@ -31,8 +31,12 @@ fmt:
 check:
     dotnet build -c Release
     just analyze
+    just doc
     dotnet test
     dotnet tool run fantomas --check .
+
+doc:
+    dotnet run --project app/Aoc.Ops -c Release -- doc
 
 # The scoped repository analyzer delegates option safety to Ionide; unrelated
 # optional style suggestions are not part of this repository's rule set.

@@ -14,6 +14,78 @@ let tests =
         "Ops"
         [
             testList
+                "Doc"
+                [
+                    let header =
+                        "// approach: scan\n// cost: O(n) time and memory, one pass\n// trade: simple\nmodule Example\n"
+
+                    let primary = "src/Aoc/Y2017/Day01/Primary.fs"
+
+                    testCase "command needs no puzzle date" (fun () ->
+                        Expect.equal (Command.parse [| "doc" |]) (Ok Command.Doc) "Offline operation")
+
+                    testCase "clean header passes" (fun () ->
+                        Expect.equal (Doc.check primary header) [] "Valid ordered header")
+
+                    for name, text, expected in
+                        [
+                            "missing tag",
+                            header.Replace("// trade: simple\n", ""),
+                            [ primary + ":3: expected // trade: with non-empty text before module" ]
+                            "wrong order",
+                            header
+                                .Replace("// approach: scan", "// cost: scan")
+                                .Replace("// cost: O(n) time and memory, one pass", "// approach: scan"),
+                            [
+                                primary + ":1: expected // approach: with non-empty text before module"
+                                primary + ":2: expected // cost: with non-empty text before module"
+                            ]
+                            "empty text",
+                            header.Replace("// trade: simple", "// trade:   "),
+                            [ primary + ":3: expected // trade: with non-empty text before module" ]
+                            "header after module",
+                            "module Example\n" + header,
+                            [
+                                primary + ":1: expected // approach: with non-empty text before module"
+                                primary + ":2: expected // cost: with non-empty text before module"
+                                primary + ":3: expected // trade: with non-empty text before module"
+                            ]
+                        ] do
+                        testCase name (fun () -> Expect.equal (Doc.check primary text) expected name)
+
+                    testCase "Input is exempt" (fun () ->
+                        Expect.equal (Doc.check "src/Aoc/Y2017/Day01/Input.fs" "module Example") [] "Domain model")
+
+                    testCase "explorations are checked" (fun () ->
+                        Expect.equal
+                            (Doc.check
+                                "src/Aoc/Y2017/Day01/Recursive.fs"
+                                (header.Replace("// trade: simple", "// trade:")))
+                            [
+                                "src/Aoc/Y2017/Day01/Recursive.fs:3: expected // trade: with non-empty text before module"
+                            ]
+                            "Same contract")
+
+                    testCase "directives report every source line" (fun () ->
+                        Expect.equal
+                            (Doc.check
+                                "tests/Sample.fs"
+                                "// #nowarn harmless\nlet text = \"#nowarn\"\n  #nowarn \"25\"\n#nowarn \"1182\"\n")
+                            [
+                                "tests/Sample.fs:3: #nowarn is forbidden; document suppressions in Directory.Build.props"
+                                "tests/Sample.fs:4: #nowarn is forbidden; document suppressions in Directory.Build.props"
+                            ]
+                            "Line-start directives only")
+
+                    testCase "lexical multiline limitation is explicit" (fun () ->
+                        Expect.equal
+                            (Doc.check "app/Sample.fs" "(*\n#nowarn \"25\"\n*)")
+                            [
+                                "app/Sample.fs:2: #nowarn is forbidden; document suppressions in Directory.Build.props"
+                            ]
+                            "Documented lexical rule")
+                ]
+            testList
                 "Bench"
                 [
                     testCase "commands validate dates" (fun () ->
