@@ -5,6 +5,7 @@ module Aoc.Y2017.Day06.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day06.Input
+open FsToolkit.ErrorHandling
 
 let private redistribute (banks: int64 list) =
     let count = List.length banks
@@ -32,12 +33,15 @@ let private cycles banks =
             Some((cycle, previous), (redistribute banks, Map.add banks cycle seen, cycle + 1)))
         (banks, Map.empty, 0)
     // Conserved blocks and a fixed number of banks guarantee a repeated configuration.
-    |> Seq.pick (fun (cycle, previous) -> previous |> Option.map (fun first -> cycle, cycle - first))
+    |> Seq.tryPick (fun (cycle, previous) -> previous |> Option.map (fun first -> cycle, cycle - first))
+    |> Result.requireSome "redistribution ended before a repeated configuration"
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun (Banks(first, rest)) ->
-            let total, loop = first :: rest |> List.map int64 |> cycles
-            Answers.both (string total) (string loop))
+        |> Result.bind (fun (Banks(first, rest)) ->
+            first :: rest
+            |> List.map int64
+            |> cycles
+            |> Result.map (fun (total, loop) -> Answers.both (string total) (string loop)))

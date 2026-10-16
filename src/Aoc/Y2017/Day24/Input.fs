@@ -2,7 +2,7 @@
 module Aoc.Y2017.Day24.Input
 
 /// Two non-negative pin counts; repeated components remain separate pieces.
-type Component = Component of int * int
+type Component = Component of left: int * right: int
 
 let private parseComponent (line: string) =
     match line.Split('/') with
@@ -15,5 +15,5 @@ let private parseComponent (line: string) =
 /// Parses the input into the puzzle domain model.
 let parse (input: string) : Result<Component list, string> =
     match input.Trim() with
-    | "" -> Error "empty component inventory"
+    | text when String.length text = 0 -> Error "empty component inventory"
     | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse parseComponent

@@ -35,7 +35,7 @@ let private network =
             [
                 for id in 0 .. count - 1 ->
                     let connections = neighbours id |> List.map string |> String.concat ", "
-                    $"{id} <-> {connections}"
+                    $"%O{id} <-> %O{connections}"
             ]
             |> String.concat "\n"
 

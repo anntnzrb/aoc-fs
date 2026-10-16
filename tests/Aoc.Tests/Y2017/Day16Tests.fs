@@ -9,11 +9,11 @@ let private dances =
     let move =
         Gen.oneof
             [
-                Gen.choose (0, 1000) |> Gen.map (fun n -> $"s{n}", Input.Spin n)
+                Gen.choose (0, 1000) |> Gen.map (fun n -> $"s%O{n}", Input.Spin n)
                 Gen.zip (Gen.choose (0, 15)) (Gen.choose (0, 15))
-                |> Gen.map (fun (a, b) -> $"x{a}/{b}", Input.Exchange(a, b))
+                |> Gen.map (fun (a, b) -> $"x%O{a}/%O{b}", Input.Exchange(a, b))
                 Gen.zip (Gen.elements [ 'a' .. 'p' ]) (Gen.elements [ 'a' .. 'p' ])
-                |> Gen.map (fun (a, b) -> $"p{a}/{b}", Input.Partner(a, b))
+                |> Gen.map (fun (a, b) -> $"p%O{a}/%O{b}", Input.Partner(a, b))
             ]
 
     Gen.nonEmptyListOf move
@@ -38,7 +38,7 @@ let tests =
                 }
                 "solver is total on generated dances"
                 (Prop.forAll (Arb.fromGen dances) (fun (text, _) ->
-                    Primary.solve text |> ignore
+                    Primary.solve text |> ignore<Result<Answers, string>>
                     true))
             testCase "parses all move forms in order with outer whitespace" (fun () ->
                 match Input.parse " \ns0,x0/15,pa/p\r\n " with
@@ -64,7 +64,7 @@ let tests =
                         "pa/"
                         "q0"
                     ] do
-                    Expect.isError (Input.parse input) $"reject {input}")
+                    Expect.isError (Input.parse input) $"reject %O{input}")
             testCase "equal swap operands leave both answers unchanged" (fun () ->
                 // Swapping any position or name with itself is identity, including after a billion dances.
                 let expected = Ok(Answers.both "abcdefghijklmnop" "abcdefghijklmnop")

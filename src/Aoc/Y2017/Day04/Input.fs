@@ -2,7 +2,7 @@
 module Aoc.Y2017.Day04.Input
 
 /// A passphrase containing lowercase words in their original order.
-type Passphrase = Passphrase of string list
+type Passphrase = Passphrase of value: string list
 
 let private passphrase (line: string) =
     let words =

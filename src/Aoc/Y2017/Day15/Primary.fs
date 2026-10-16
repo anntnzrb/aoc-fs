@@ -6,6 +6,7 @@ module Aoc.Y2017.Day15.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day15.Input
 
+[<TailCall>]
 let rec private generate factor multiple previous =
     let value = previous * factor % modulus
 
@@ -14,6 +15,7 @@ let rec private generate factor multiple previous =
     else
         generate factor multiple value
 
+[<TailCall>]
 let rec private countMatches remaining multipleA multipleB a b count =
     if remaining = 0 then
         count

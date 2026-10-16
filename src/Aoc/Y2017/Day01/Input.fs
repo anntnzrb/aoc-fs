@@ -12,10 +12,10 @@ let private digit (c: char) : Result<int, string> =
     if System.Char.IsAsciiDigit c then
         Ok(int c - int '0')
     else
-        Error $"not a digit: {c}"
+        Error $"not a digit: %c{c}"
 
 /// Parses one line of digits; rejects empty input and any non-digit.
 let parse (input: string) : Result<Captcha, string> =
     match input.Trim() with
-    | "" -> Error "empty captcha"
+    | text when String.length text = 0 -> Error "empty captcha"
     | line -> line |> Aoc.Parse.traverse digit |> Result.map (fun ds -> { Digits = ds })

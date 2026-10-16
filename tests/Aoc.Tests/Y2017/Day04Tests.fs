@@ -28,7 +28,7 @@ let tests =
                 "parser preserves phrase and word order"
                 (Prop.forAll (Arb.fromGen phrases) (fun (text, words) ->
                     Input.parse text
-                    |> Result.map (List.map (fun (Input.Passphrase words) -> words))
+                    |> Result.map (fun phrases -> phrases |> List.map (fun (Input.Passphrase words) -> words))
                         =
                         Ok words))
             testPropertyWithConfig

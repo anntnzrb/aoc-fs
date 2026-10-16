@@ -24,5 +24,5 @@ let parse (input: string) : Result<Puzzle, string> =
     match text |> Seq.forall System.Char.IsAscii with
     | false -> Error "hash input must contain only ASCII characters"
     | true ->
-        (if text = "" then Ok [] else lengths text)
+        (if text.Length = 0 then Ok [] else lengths text)
         |> Result.map (fun lengths -> { Text = text; Lengths = lengths })

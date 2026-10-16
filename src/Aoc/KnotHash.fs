@@ -34,4 +34,4 @@ let dense (text: string) =
     lengths
     |> sparse 64
     |> Array.chunkBySize 16
-    |> Array.map (Array.fold (^^^) 0 >> byte)
+    |> Array.map (fun block -> Array.fold (fun combined value -> combined ^^^ value) 0 block |> byte)

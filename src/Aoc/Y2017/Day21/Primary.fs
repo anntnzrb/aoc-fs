@@ -11,7 +11,7 @@ let private grid (rows: string list) =
     let rows = rows |> List.toArray
     Array2D.init rows.Length rows.Length (fun y x -> rows[y][x] = '#')
 
-let private key size top left (image: bool[,]) =
+let private key size top left (image: bool array2d) =
     let bits =
         [
             for y in 0 .. size - 1 do
@@ -29,10 +29,10 @@ let private index rules =
             let target = grid rule.Target
             let size = Array2D.length1 source
 
-            let rotate (image: bool[,]) =
+            let rotate (image: bool array2d) =
                 Array2D.init size size (fun y x -> image[size - 1 - x, y])
 
-            let flip (image: bool[,]) =
+            let flip (image: bool array2d) =
                 Array2D.init size size (fun y x -> image[y, size - 1 - x])
 
             source
@@ -46,7 +46,7 @@ let private index rules =
                 lookup)
         Map.empty
 
-let private enhance (lookup: Map<int * int, bool[,]>) (image: bool[,]) =
+let private enhance (lookup: Map<int * int, bool array2d>) (image: bool array2d) =
     let size = Array2D.length1 image
     let block = if size % 2 = 0 then 2 else 3
     let blocks = size / block
@@ -82,7 +82,7 @@ let solve: Solver =
 
             let images =
                 [ 1..part2Iterations ]
-                |> Seq.scan (fun image _ -> image |> Result.bind (enhance lookup)) (Ok start)
+                |> Seq.scan (fun image _ -> image |> Result.bind (fun grid -> enhance lookup grid)) (Ok start)
                 |> Seq.toArray
 
             let! part1 = images[part1Iterations]

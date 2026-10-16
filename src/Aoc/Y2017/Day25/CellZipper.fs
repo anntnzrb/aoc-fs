@@ -6,6 +6,7 @@ module Aoc.Y2017.Day25.CellZipper
 open Aoc.Solution
 open Aoc.Y2017.Day25.Input
 
+[<TailCall>]
 let rec private run states remaining state left current right =
     if remaining = 0 then
         let count = List.sumBy (fun bit -> if bit then 1 else 0)

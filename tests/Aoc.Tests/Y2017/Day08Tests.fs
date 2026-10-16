@@ -26,7 +26,7 @@ let private program =
         let! threshold = Gen.choose (-20, 20)
 
         return
-            $"{target} {op} {amount} if {source} {cmp} {threshold}",
+            $"%O{target} %O{op} %O{amount} if %O{source} %O{cmp} %O{threshold}",
             {
                 Input.Target = target
                 Input.Operation = operation

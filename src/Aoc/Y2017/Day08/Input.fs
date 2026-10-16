@@ -2,11 +2,13 @@
 module Aoc.Y2017.Day08.Input
 
 /// The change requested by an instruction.
+[<Struct>]
 type Operation =
     | Increase
     | Decrease
 
 /// The comparison guarding a register change.
+[<Struct>]
 type Comparison =
     | Greater
     | Less
@@ -65,10 +67,10 @@ let private instruction (line: string) =
 
     match parsed with
     | Some value -> Ok value
-    | None -> Error $"invalid instruction: {line}"
+    | None -> Error $"invalid instruction: %s{line}"
 
 /// Parses a non-empty sequence of instructions in execution order.
 let parse (input: string) : Result<Instruction list, string> =
     match input.Trim() with
-    | "" -> Error "empty register program"
+    | text when String.length text = 0 -> Error "empty register program"
     | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse instruction

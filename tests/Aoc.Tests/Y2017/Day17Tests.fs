@@ -12,7 +12,7 @@ let tests =
             testProperty
                 "parser preserves nonnegative step counts"
                 (Prop.forAll (Arb.fromGen (Gen.choose (0, System.Int32.MaxValue))) (fun steps ->
-                    match Input.parse ($" \t{steps}\r\n") with
+                    match Input.parse ($" \t%O{steps}\r\n") with
                     | Ok(Input.Steps parsed) -> parsed = steps
                     | Error _ -> false))
         ]

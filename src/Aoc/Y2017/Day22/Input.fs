@@ -2,12 +2,13 @@
 module Aoc.Y2017.Day22.Input
 
 /// A node's initial infection status.
+[<Struct>]
 type Node =
     | Clean
     | Infected
 
 /// Rows in top-to-bottom order, each with the same odd width.
-type InfectionMap = InfectionMap of Node list list
+type InfectionMap = InfectionMap of value: Node list list
 
 /// Parses a non-empty rectangular map with a unique centre node.
 let parse (input: string) : Result<InfectionMap, string> =

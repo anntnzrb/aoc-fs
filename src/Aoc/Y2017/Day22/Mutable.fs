@@ -7,11 +7,13 @@ open System.Collections.Generic
 open Aoc.Solution
 open Aoc.Y2017.Day22.Input
 
+[<Struct>]
 type private State =
     | Weakened
     | Infected
     | Flagged
 
+[<Struct>]
 type private Mode =
     | Basic
     | Evolved

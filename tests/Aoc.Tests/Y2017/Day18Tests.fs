@@ -24,9 +24,9 @@ let private programs =
         Gen.oneof
             [
                 operand
-                |> Gen.map (fun value -> $"snd {renderOperand value}", Input.Sound value)
+                |> Gen.map (fun value -> $"snd %O{renderOperand value}", Input.Sound value)
                 register
-                |> Gen.map (fun (Input.Register name as target) -> $"rcv {name}", Input.Receive target)
+                |> Gen.map (fun (Input.Register name as target) -> $"rcv %O{name}", Input.Receive target)
                 gen {
                     let! (Input.Register name as target) = register
 
@@ -40,13 +40,16 @@ let private programs =
                             ]
 
                     let! value = operand
-                    return $"{keyword} {name} {renderOperand value}", Input.Update(target, operation, value)
+                    return $"%O{keyword} %O{name} %O{renderOperand value}", Input.Update(target, operation, value)
                 }
                 gen {
                     let! condition = operand
                     // Forward jumps keep both interpreters finite for totality checks.
                     let! offset = Gen.choose (1, 4)
-                    return $"jgz {renderOperand condition} {offset}", Input.Jump(condition, Input.Literal(int64 offset))
+
+                    return
+                        $"jgz %O{renderOperand condition} %O{offset}",
+                        Input.Jump(condition, Input.Literal(int64 offset))
                 }
             ]
 

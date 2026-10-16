@@ -6,19 +6,19 @@ open Aoc.Solution
 open Aoc.Y2017.Day25
 
 let private rules name nextZero nextOne =
-    $"""In state {name}:
+    $"""In state %O{name}:
   If the current value is 0:
     - Write the value 1.
     - Move one slot to the right.
-    - Continue with state {nextZero}.
+    - Continue with state %O{nextZero}.
   If the current value is 1:
     - Write the value 0.
     - Move one slot to the left.
-    - Continue with state {nextOne}.
+    - Continue with state %O{nextOne}.
 """
 
 let private blueprint steps start definitions =
-    $"Begin in state {start}.\nPerform a diagnostic checksum after {steps} steps.\n\n{definitions}"
+    $"Begin in state %O{start}.\nPerform a diagnostic checksum after %O{steps} steps.\n\n%O{definitions}"
 
 [<Tests>]
 let tests =
@@ -76,9 +76,9 @@ let cellZipperTests =
                     let write = actions[offset] % 2
                     let move = if actions[offset + 1] % 2 = 0 then "left" else "right"
                     let next = if actions[offset + 2] % 2 = 0 then "A" else "B"
-                    $"  If the current value is {value}:\n    - Write the value {write}.\n    - Move one slot to the {move}.\n    - Continue with state {next}.\n"
+                    $"  If the current value is %O{value}:\n    - Write the value %O{write}.\n    - Move one slot to the %O{move}.\n    - Continue with state %O{next}.\n"
 
-                $"In state {name}:\n" + branch 0 + branch 1
+                $"In state %O{name}:\n" + branch 0 + branch 1
 
             return blueprint steps "A" (definition 0 "A" + definition 1 "B")
         }

@@ -4,7 +4,8 @@ module Aoc.Y2017.Day15.Input
 open FParsec
 
 /// A generator's starting value, below the modulus.
-type Seed = Seed of int64
+[<Struct>]
+type Seed = Seed of value: int64
 
 /// Starting values for the two generators.
 type Generators = { A: Seed; B: Seed }

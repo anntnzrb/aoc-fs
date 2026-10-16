@@ -6,6 +6,7 @@ module Aoc.Y2017.Day05.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day05.Input
 
+[<TailCall>]
 let rec private steps strange length position count jumps =
     if position < 0L || position >= int64 length then
         count

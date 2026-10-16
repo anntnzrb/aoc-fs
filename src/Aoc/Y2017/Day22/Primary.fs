@@ -6,6 +6,7 @@ module Aoc.Y2017.Day22.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day22.Input
 
+[<Struct>]
 type Node =
     | Clean
     | Weakened
@@ -86,10 +87,12 @@ module Tile =
         // Mask after widening: uint32 conversion of negative coordinates throws in checked builds.
         (int64 (x >>> 4) <<< 32) ||| (int64 (y >>> 4) &&& 0xffffffffL)
 
+[<Struct>]
 type private Mode =
     | Basic
     | Evolved
 
+[<TailCall>]
 let rec private run mode remaining x y dx dy count key tile tiles =
     if remaining <= 0 then
         count

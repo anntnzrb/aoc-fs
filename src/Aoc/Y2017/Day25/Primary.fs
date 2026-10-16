@@ -7,6 +7,7 @@ open System.Numerics
 open Aoc.Solution
 open Aoc.Y2017.Day25.Input
 
+[<TailCall>]
 let rec private run states remaining state (left: uint64 list) (current: uint64) offset (right: uint64 list) =
     if remaining = 0 then
         Ok(

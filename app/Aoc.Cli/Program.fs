@@ -24,7 +24,7 @@ let private selection (args: string array) =
 
 let private run key input =
     match input with
-    | "" -> 0
+    | text when String.length text = 0 -> 0
     | _ ->
         match Registry.solvers |> Map.tryFind key with
         | None ->
@@ -49,7 +49,7 @@ let main args =
     try
         match selection args with
         | None ->
-            eprintfn "Usage: aoc YEAR DAY [EXPLORATION] < input"
+            Console.Error.WriteLine "Usage: aoc YEAR DAY [EXPLORATION] < input"
             2
         | Some key -> Console.In.ReadToEnd() |> run key
     with error ->

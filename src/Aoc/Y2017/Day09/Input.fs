@@ -5,8 +5,8 @@ open FParsec
 
 /// A nested group or garbage containing only characters that were not canceled.
 type Item =
-    | Group of Item list
-    | Garbage of string
+    | Group of value: Item list
+    | Garbage of value: string
 
 /// Parses one complete group, removing canceled garbage characters.
 let parse (input: string) : Result<Item, string> =

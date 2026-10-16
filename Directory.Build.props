@@ -4,9 +4,15 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <OtherFlags>$(OtherFlags) --warnon:1182</OtherFlags>
+    <WarningLevel>5</WarningLevel>
+    <WarnOn>$(WarnOn);21;22;52;1178;1182;3180;3186;3366;3388;3389;3390;3395;3517;3559;3560;3570;3579;3582;3878</WarnOn>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Aoc.Tests'">
+    <!-- FsCheck 3.4.0 ships an anonymous-record metadata node without a matching
+         declaration; consumer source cannot repair third-party assembly metadata. -->
+    <NoWarn>$(NoWarn);3186</NoWarn>
   </PropertyGroup>
 </Project>

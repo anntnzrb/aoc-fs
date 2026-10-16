@@ -30,7 +30,7 @@ let private row (line: string) =
 /// Parses space- or tab-separated integers; rejects empty rows and invalid tokens.
 let parse (input: string) : Result<Spreadsheet, string> =
     match input.Trim() with
-    | "" -> Error "empty spreadsheet"
+    | text when String.length text = 0 -> Error "empty spreadsheet"
     | text ->
         text.Replace("\r\n", "\n").Split('\n')
         |> Aoc.Parse.traverse row

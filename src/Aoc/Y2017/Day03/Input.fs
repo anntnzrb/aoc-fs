@@ -2,7 +2,8 @@
 module Aoc.Y2017.Day03.Input
 
 /// The positive number identifying a memory square.
-type Square = Square of int
+[<Struct>]
+type Square = Square of value: int
 
 /// Parses one positive decimal square number, allowing surrounding whitespace.
 let parse (input: string) : Result<Square, string> =

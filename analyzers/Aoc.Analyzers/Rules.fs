@@ -10,6 +10,7 @@ open FSharp.Compiler.Symbols
 open FSharp.Compiler.Text
 
 // Traverse syntax data without a mutable visitor or handwritten child enumeration.
+[<TailCall>]
 let rec private nodes (value: objnull) =
     seq {
         match Option.ofObj value with
@@ -20,7 +21,7 @@ let rec private nodes (value: objnull) =
 
             let container =
                 kind.IsGenericType
-                && [ typedefof<list<_>>; typedefof<option<_>> ]
+                && [ typedefof<obj list>; typedefof<obj option> ]
                    |> List.contains (
                        if kind.IsGenericType then
                            kind.GetGenericTypeDefinition()
@@ -91,12 +92,14 @@ let private collection (entity: FSharpEntity) =
     && [ "Dictionary"; "HashSet"; "List"; "Queue"; "Stack" ]
        |> List.contains entity.DisplayName
 
+[<TailCall>]
 let rec private bindingPattern =
     function
     | SynPat.Paren(pat = pattern)
     | SynPat.Typed(pat = pattern) -> bindingPattern pattern
     | pattern -> pattern
 
+[<TailCall>]
 let rec private calledFunction =
     function
     | SynExpr.App(funcExpr = expression)
@@ -107,9 +110,12 @@ let rec private calledFunction =
     | SynExpr.LongIdent(range = range) -> Some range
     | _ -> None
 
+[<TailCall>]
 let rec private publicEntity (entity: FSharpEntity) =
     entity.Accessibility.IsPublic
-    && (entity.DeclaringEntity |> Option.forall publicEntity)
+    && match entity.DeclaringEntity with
+       | Some parent -> publicEntity parent
+       | None -> true
 
 let private undocumented =
     function

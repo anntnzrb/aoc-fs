@@ -4,6 +4,7 @@ module Aoc.Y2017.Day23.Input
 open FsToolkit.ErrorHandling
 
 /// One of the eight registers a through h.
+[<Struct>]
 type Register =
     | A
     | B
@@ -16,15 +17,15 @@ type Register =
 
 /// An immediate integer or a register's current value.
 type Operand =
-    | Literal of int64
-    | Read of Register
+    | Literal of value: int64
+    | Read of value: Register
 
 /// The four coprocessor instructions.
 type Instruction =
-    | Set of Register * Operand
-    | Sub of Register * Operand
-    | Mul of Register * Operand
-    | Jump of Operand * Operand
+    | Set of target: Register * operand: Operand
+    | Sub of target: Register * operand: Operand
+    | Mul of target: Register * operand: Operand
+    | Jump of condition: Operand * offset: Operand
 
 let private register (text: string) =
     match text with
@@ -67,5 +68,5 @@ let private instruction (line: string) =
 /// Parses a nonempty program, rejecting malformed instructions and operands.
 let parse (input: string) =
     match input.Trim() with
-    | "" -> Error "empty program"
+    | text when String.length text = 0 -> Error "empty program"
     | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse instruction

@@ -2,6 +2,7 @@
 module Aoc.Y2017.Day11.Input
 
 /// A move to one of the six adjacent hexes.
+[<Struct>]
 type Direction =
     | North
     | Northeast

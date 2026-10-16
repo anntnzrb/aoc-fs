@@ -18,7 +18,7 @@ let private firewall =
 
         let text =
             ranges
-            |> List.mapi (fun depth range -> $"{depth}: {range}")
+            |> List.mapi (fun depth range -> $"%O{depth}: %O{range}")
             |> String.concat "\n"
 
         text, layers)

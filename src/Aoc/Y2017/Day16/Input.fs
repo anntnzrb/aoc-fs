@@ -5,9 +5,9 @@ open FParsec
 
 /// A rotation, a swap of positions, or a swap of program names.
 type Move =
-    | Spin of int
-    | Exchange of int * int
-    | Partner of char * char
+    | Spin of value: int
+    | Exchange of left: int * right: int
+    | Partner of left: char * right: char
 
 /// Parses a non-empty comma-separated dance, validating positions and names.
 let parse (input: string) : Result<Move list, string> =

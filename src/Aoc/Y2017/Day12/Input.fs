@@ -4,7 +4,7 @@ module Aoc.Y2017.Day12.Input
 open FParsec
 
 /// A program's non-negative identifier.
-type ProgramId = ProgramId of uint32
+type ProgramId = ProgramId of value: uint32
 
 /// A program and the programs directly connected to it by pipes.
 type Program =

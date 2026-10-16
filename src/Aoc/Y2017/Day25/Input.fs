@@ -3,15 +3,18 @@ module Aoc.Y2017.Day25.Input
 
 open FParsec
 
+[<Struct>]
 type Bit =
     | Zero
     | One
 
+[<Struct>]
 type Direction =
     | Left
     | Right
 
-type State = State of string
+[<Struct>]
+type State = State of value: string
 
 type Action =
     {
@@ -38,7 +41,7 @@ let parse (input: string) : Result<Blueprint, string> =
     let direction = (token "left" >>% Left) <|> (token "right" >>% Right)
 
     let action value =
-        token $"If the current value is {value}:"
+        token $"If the current value is %d{value}:"
         >>. pipe3
             (token "- Write the value" >>. bit .>> token ".")
             (token "- Move one slot to the" >>. direction .>> token ".")

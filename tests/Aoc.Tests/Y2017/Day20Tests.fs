@@ -27,11 +27,11 @@ let private particles =
     }
 
 let private render (particles: Input.Particle list) =
-    let vector (Input.Vector(x, y, z)) = $"<{x},{y},{z}>"
+    let vector (Input.Vector(x, y, z)) = $"<%O{x},%O{y},%O{z}>"
 
     particles
     |> List.map (fun particle ->
-        $"p={vector particle.Position}, v={vector particle.Velocity}, a={vector particle.Acceleration}")
+        $"p=%O{vector particle.Position}, v=%O{vector particle.Velocity}, a=%O{vector particle.Acceleration}")
     |> String.concat "\n"
 
 let private config =

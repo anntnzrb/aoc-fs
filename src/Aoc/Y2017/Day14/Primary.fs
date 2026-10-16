@@ -9,7 +9,7 @@ open Aoc.Y2017.Day14.Input
 let private usedSquares key =
     [
         for row in 0..127 do
-            let hash = $"{key}-{row}" |> Aoc.KnotHash.dense
+            let hash = $"%s{key}-%d{row}" |> Aoc.KnotHash.dense
 
             for block in 0..15 do
                 for bit in 0..7 do

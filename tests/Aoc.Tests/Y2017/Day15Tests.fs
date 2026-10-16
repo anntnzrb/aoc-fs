@@ -10,7 +10,7 @@ let private generators =
         let! b = Gen.choose (0, 2147483646)
         let! newline = Gen.elements [ "\n"; "\r\n" ]
         let! suffix = Gen.elements [ ""; newline ]
-        return $"Generator A starts with {a}{newline}Generator B starts with {b}{suffix}", (int64 a, int64 b)
+        return $"Generator A starts with %O{a}%O{newline}Generator B starts with %O{b}%O{suffix}", (int64 a, int64 b)
     }
 
 [<Tests>]

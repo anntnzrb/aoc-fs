@@ -29,11 +29,12 @@ module Answers =
 type Solver = string -> Result<Answers, string>
 
 /// Selects the primary implementation or an exploration by its lowercase CLI name.
+[<Struct>]
 type Variant =
     /// The day's first, idiomatic implementation.
     | Primary
     /// An alternative implementation identified by its lowercase CLI name.
-    | Exploration of string
+    | Exploration of value: string
 
 /// Identifies one implementation of a puzzle by year, day and variant.
 type Key =

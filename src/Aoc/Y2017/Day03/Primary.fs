@@ -43,7 +43,11 @@ let solve: Solver =
     fun input ->
         result {
             let! (Square number) = Input.parse input
-            let x, y = positions () |> Seq.item (number - 1)
+
+            let! x, y =
+                positions ()
+                |> Seq.tryItem (number - 1)
+                |> Result.requireSome "spiral ended before the target position"
 
             let! value =
                 firstLarger number

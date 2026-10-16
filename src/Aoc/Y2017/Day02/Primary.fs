@@ -21,7 +21,10 @@ let private divisionSum (Row(first, rest)) =
         exact a b |> Option.orElseWith (fun () -> exact b a) |> Option.defaultValue 0I
 
     first :: rest
-    |> List.fold (fun (seen, total) value -> value :: seen, total + (seen |> List.sumBy (quotient value))) ([], 0I)
+    |> List.fold
+        (fun (seen, total) value ->
+            value :: seen, total + (seen |> List.sumBy (fun previous -> quotient value previous)))
+        ([], 0I)
     |> snd
 
 let solve: Solver =

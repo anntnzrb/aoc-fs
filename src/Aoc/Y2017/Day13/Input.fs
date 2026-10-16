@@ -4,10 +4,10 @@ module Aoc.Y2017.Day13.Input
 open FParsec
 
 /// A layer's non-negative distance into the firewall.
-type Depth = Depth of uint32
+type Depth = Depth of value: uint32
 
 /// The positive number of positions scanned in a layer.
-type Range = Range of uint32
+type Range = Range of value: uint32
 
 /// A scanner at a particular firewall depth.
 type Layer = { Depth: Depth; Range: Range }

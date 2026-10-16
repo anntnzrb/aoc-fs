@@ -56,10 +56,10 @@ let private render program =
 
     program
     |> List.map (function
-        | Input.Set(target, source) -> $"set {register target} {operand source}"
-        | Input.Sub(target, source) -> $"sub {register target} {operand source}"
-        | Input.Mul(target, source) -> $"mul {register target} {operand source}"
-        | Input.Jump(condition, offset) -> $"jnz {operand condition} {operand offset}")
+        | Input.Set(target, source) -> $"set %O{register target} %O{operand source}"
+        | Input.Sub(target, source) -> $"sub %O{register target} %O{operand source}"
+        | Input.Mul(target, source) -> $"mul %O{register target} %O{operand source}"
+        | Input.Jump(condition, offset) -> $"jnz %O{operand condition} %O{operand offset}")
     |> String.concat "\n"
 
 let private config =

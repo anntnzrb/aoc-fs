@@ -17,7 +17,7 @@ let private components =
 
 let private render components =
     components
-    |> List.map (fun (Input.Component(left, right)) -> $"{left}/{right}")
+    |> List.map (fun (Input.Component(left, right)) -> $"%O{left}/%O{right}")
     |> String.concat "\n"
 
 let private config =

@@ -29,7 +29,7 @@ let private render (rules: Input.Rule list) =
     |> List.map (fun rule ->
         let source = String.concat "/" rule.Source
         let target = String.concat "/" rule.Target
-        $"{source} => {target}")
+        $"%O{source} => %O{target}")
     |> String.concat "\n"
 
 let private config =

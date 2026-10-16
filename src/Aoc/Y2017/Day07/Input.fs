@@ -39,7 +39,7 @@ let private tower =
 /// Parses non-empty descriptions with unique program names, rejecting malformed lines.
 let parse (input: string) : Result<Program list, string> =
     match input.Trim() with
-    | "" -> Result.Error "empty tower"
+    | text when String.length text = 0 -> Result.Error "empty tower"
     | text ->
         let text = text.Replace("\r\n", "\n")
 

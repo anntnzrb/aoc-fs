@@ -32,7 +32,7 @@ let private tower =
                     else
                         " -> " + String.concat ", " children
 
-                $"{name} ({weight}){suffix}")
+                $"%O{name} (%O{weight})%O{suffix}")
             |> String.concat "\n"
 
         return text, descriptions
@@ -50,7 +50,9 @@ let tests =
                 "parser preserves generated tower descriptions"
                 (Prop.forAll (Arb.fromGen tower) (fun (text, descriptions) ->
                     Input.parse text
-                    |> Result.map (List.map (fun program -> program.Name, program.Weight, program.Children))
+                    |> Result.map (fun programs ->
+                        programs
+                        |> List.map (fun program -> program.Name, program.Weight, program.Children))
                         =
                         Ok descriptions))
             testPropertyWithConfig
@@ -65,7 +67,9 @@ let tests =
             testCase "preserves program and child order with trimmed CRLF input" (fun () ->
                 let parsed =
                     Input.parse " \t\r\nroot (0) -> z, a\r\nz (01)\r\na (2147483647)\r\n\r\n\t "
-                    |> Result.map (List.map (fun program -> program.Name, program.Weight, program.Children))
+                    |> Result.map (fun programs ->
+                        programs
+                        |> List.map (fun program -> program.Name, program.Weight, program.Children))
 
                 Expect.equal
                     parsed
@@ -89,7 +93,7 @@ let tests =
                         "root (1)\ra (1)"
                         "root (1)\na (1) trailing"
                     ] do
-                    Expect.isError (Input.parse text) $"must reject {text}")
+                    Expect.isError (Input.parse text) $"must reject %O{text}")
             testCase "rejects empty towers" (fun () ->
                 Expect.equal (Input.parse " \r\n\t ") (Error "empty tower") "no program descriptions")
             testCase "rejects duplicate program names" (fun () ->
@@ -100,7 +104,8 @@ let tests =
             testCase "corrects either child using the inherited tower total" (fun () ->
                 // a and b total 10, so c must total 10; with c's own weight 0, both children must weigh 5.
                 for children in [ "d, e"; "e, d" ] do
-                    let input = $"r (0) -> a, b, c\na (10)\nb (10)\nc (0) -> {children}\nd (5)\ne (7)\n"
+                    let input =
+                        $"r (0) -> a, b, c\na (10)\nb (10)\nc (0) -> %O{children}\nd (5)\ne (7)\n"
 
                     Expect.equal
                         (Primary.solve input)

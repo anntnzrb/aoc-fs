@@ -4,14 +4,16 @@ module Aoc.Y2017.Day18.Input
 open FParsec
 
 /// A named integer register, initially zero.
-type Register = Register of char
+[<Struct>]
+type Register = Register of value: char
 
 /// An instruction argument is a literal integer or a register read.
 type Operand =
-    | Literal of int64
-    | Read of Register
+    | Literal of value: int64
+    | Read of value: Register
 
 /// The arithmetic updates supported by the tablet.
+[<Struct>]
 type Operation =
     | Assign
     | Increase
@@ -20,10 +22,10 @@ type Operation =
 
 /// The seven instructions understood by the tablet.
 type Instruction =
-    | Sound of Operand
-    | Update of Register * Operation * Operand
-    | Receive of Register
-    | Jump of Operand * Operand
+    | Sound of value: Operand
+    | Update of target: Register * operation: Operation * operand: Operand
+    | Receive of value: Register
+    | Jump of condition: Operand * offset: Operand
 
 /// Parses a nonempty program, rejecting malformed instructions and operands.
 let parse (input: string) : Result<Instruction list, string> =

@@ -2,7 +2,7 @@
 module Aoc.Y2017.Day05.Input
 
 /// Relative jump offsets in instruction order.
-type Instructions = Instructions of int list
+type Instructions = Instructions of value: int list
 
 /// Parses a non-empty list of signed integer offsets, one per line.
 let parse (input: string) : Result<Instructions, string> =
@@ -12,7 +12,7 @@ let parse (input: string) : Result<Instructions, string> =
         | false, _ -> Error "invalid jump offset"
 
     match input.Trim() with
-    | "" -> Error "empty instruction list"
+    | text when String.length text = 0 -> Error "empty instruction list"
     | text ->
         text.Replace("\r\n", "\n").Split('\n')
         |> Aoc.Parse.traverse offset
