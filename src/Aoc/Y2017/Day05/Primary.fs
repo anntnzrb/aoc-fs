@@ -1,12 +1,12 @@
-// approach: follow relative jumps using each old offset, then increment the instruction just visited
-// cost: O(n + s) time, O(n) memory; parse once, traverse the n offsets twice to build the array, execute s indexed jumps
+// approach: follow old offsets, then update the visited instruction by each part's rule in separate simulations
+// cost: O(n + s1 + s2) time, O(n) memory; parse once, two offset traversals per part, then indexed jumps
 // trade: local array mutation models changing instructions directly without copying the list at every step
 module Aoc.Y2017.Day05.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day05.Input
 
-let private steps (Instructions offsets) =
+let private steps update (Instructions offsets) =
     let jumps = offsets |> List.map int64 |> List.toArray
     let mutable position = 0L
     let mutable count = 0L
@@ -14,7 +14,7 @@ let private steps (Instructions offsets) =
     while position >= 0L && position < int64 jumps.Length do
         let index = int position
         let offset = jumps[index]
-        jumps[index] <- offset + 1L
+        jumps[index] <- update offset
         position <- position + offset
         count <- count + 1L
 
@@ -24,4 +24,10 @@ let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun instructions -> Answers.both (steps instructions |> string) "0")
+        |> Result.map (fun instructions ->
+            let strange offset =
+                if offset >= 3L then offset - 1L else offset + 1L
+
+            Answers.both
+                (steps (fun offset -> offset + 1L) instructions |> string)
+                (steps strange instructions |> string))
