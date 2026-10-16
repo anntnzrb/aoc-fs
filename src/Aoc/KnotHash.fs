@@ -5,23 +5,23 @@ module Aoc.KnotHash
 /// Lengths must be in 0..256; position and skip carry across rounds, with circular indexing.
 /// Zero rounds or no lengths leave marks in ascending order; invalid arguments are outside the contract.
 let sparse rounds lengths =
-    let marks = Array.init 256 id
+    let step (marks: int array, position, skip) length =
+        let next =
+            Array.init 256 (fun index ->
+                let offset = (index - position + 256) % 256
 
-    let mutable position = 0
-    let mutable skip = 0
+                if offset < length then
+                    marks[(position + length - 1 - offset) % 256]
+                else
+                    marks[index])
 
-    for _ in 1..rounds do
-        for length in lengths do
-            for offset in 0 .. length / 2 - 1 do
-                let left = (position + offset) % 256
-                let right = (position + length - 1 - offset) % 256
-                let saved = marks[left]
-                marks[left] <- marks[right]
-                marks[right] <- saved
+        // Only the skip's residue affects circular positions, including across rounds.
+        next, (position + length + skip) % 256, (skip + 1) % 256
 
-            // Only the skip's residue affects circular positions, including across rounds.
-            position <- (position + length + skip) % 256
-            skip <- (skip + 1) % 256
+    let marks, _, _ =
+        Seq.replicate rounds lengths
+        |> Seq.concat
+        |> Seq.fold step (Array.init 256 id, 0, 0)
 
     marks
 
