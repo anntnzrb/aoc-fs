@@ -1,6 +1,8 @@
 /// The coprocessor's instruction grammar.
 module Aoc.Y2017.Day23.Input
 
+open FsToolkit.ErrorHandling
+
 /// One of the eight registers a through h.
 type Register =
     | A
@@ -44,18 +46,22 @@ let private operand (text: string) =
 let private instruction (line: string) =
     match line.Split(' ', System.StringSplitOptions.RemoveEmptyEntries) with
     | [| "jnz"; x; y |] ->
-        operand x
-        |> Result.bind (fun x -> operand y |> Result.map (fun y -> Jump(x, y)))
+        result {
+            let! x = operand x
+            let! y = operand y
+            return Jump(x, y)
+        }
     | [| opcode; x; y |] ->
-        register x
-        |> Result.bind (fun x ->
-            operand y
-            |> Result.bind (fun y ->
-                match opcode with
-                | "set" -> Ok(Set(x, y))
-                | "sub" -> Ok(Sub(x, y))
-                | "mul" -> Ok(Mul(x, y))
-                | _ -> Error "unknown instruction"))
+        result {
+            let! x = register x
+            let! y = operand y
+
+            match opcode with
+            | "set" -> return Set(x, y)
+            | "sub" -> return Sub(x, y)
+            | "mul" -> return Mul(x, y)
+            | _ -> return! Error "unknown instruction"
+        }
     | _ -> Error "expected an instruction with two operands"
 
 /// Parses a nonempty program, rejecting malformed instructions and operands.

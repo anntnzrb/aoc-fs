@@ -6,6 +6,7 @@ module Aoc.Y2017.Day23.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day23.Input
+open FsToolkit.ErrorHandling
 
 let private index =
     function
@@ -32,9 +33,10 @@ let private factorLoops instructions =
     |> List.windowed 15
     |> List.indexed
     |> List.fold
-        (fun result (position, remaining) ->
-            result
-            |> Result.bind (fun loops ->
+        (fun state (position, remaining) ->
+            result {
+                let! loops = state
+
                 match remaining with
                 | Set(_, Literal 2L) :: Set(_, Literal 2L) :: _ as remaining ->
                     // Only this exact, alias-free loop tests all d*e pairs in [2,b); reject other candidate shapes.
@@ -70,9 +72,10 @@ let private factorLoops instructions =
                                 Flag = index f
                             }
 
-                        Ok(Map.add position loop loops)
-                    | _ -> Error "unsupported nested factor-loop structure"
-                | _ -> Ok loops))
+                        return Map.add position loop loops
+                    | _ -> return! Error "unsupported nested factor-loop structure"
+                | _ -> return loops
+            })
         (Ok Map.empty)
     |> Result.bind (fun loops ->
         // Full windows omit the tail, where a truncated candidate must still be rejected.
@@ -84,10 +87,10 @@ let private factorLoops instructions =
                 | Set(_, Literal 2L), Set(_, Literal 2L) -> true
                 | _ -> false)
 
-        if truncatedCandidate then
-            Error "unsupported nested factor-loop structure"
-        else
-            Ok loops)
+        result {
+            do! Result.requireFalse "unsupported nested factor-loop structure" truncatedCandidate
+            return loops
+        })
 
 let private composite number =
     Seq.unfold
@@ -158,13 +161,11 @@ let private execute initialA loops (program: Instruction array) =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun instructions ->
+        result {
+            let! instructions = Input.parse input
             let program = List.toArray instructions
-
-            execute 0L Map.empty program
-            |> Result.bind (fun (part1, _) ->
-                factorLoops instructions
-                |> Result.bind (fun loops -> execute 1L loops program)
-                |> Result.map (fun (_, part2) -> Answers.both (string part1) (string part2))))
+            let! part1, _ = execute 0L Map.empty program
+            let! loops = factorLoops instructions
+            let! _, part2 = execute 1L loops program
+            return Answers.both (string part1) (string part2)
+        }
