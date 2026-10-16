@@ -13,26 +13,19 @@ type Spreadsheet =
 
 let private row (line: string) =
     line.Split([| ' '; '\t' |], System.StringSplitOptions.RemoveEmptyEntries)
-    |> Array.fold
-        (fun acc token ->
-            acc
-            |> Result.bind (fun values ->
-                match
-                    bigint.TryParse(
-                        token,
-                        System.Globalization.NumberStyles.Integer,
-                        System.Globalization.CultureInfo.InvariantCulture
-                    )
-                with
-                | true, value -> Ok(value :: values)
-                | false, _ -> Error $"not an integer: %A{token}"))
-        (Ok [])
-    |> Result.bind (
-        List.rev
-        >> function
-            | first :: rest -> Ok(Row(first, rest))
-            | [] -> Error "empty spreadsheet row"
-    )
+    |> Aoc.Parse.traverse (fun token ->
+        match
+            bigint.TryParse(
+                token,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture
+            )
+        with
+        | true, value -> Ok value
+        | false, _ -> Error $"not an integer: %A{token}")
+    |> Result.bind (function
+        | first :: rest -> Ok(Row(first, rest))
+        | [] -> Error "empty spreadsheet row")
 
 /// Parses space- or tab-separated integers; rejects empty rows and invalid tokens.
 let parse (input: string) : Result<Spreadsheet, string> =
@@ -40,9 +33,5 @@ let parse (input: string) : Result<Spreadsheet, string> =
     | "" -> Error "empty spreadsheet"
     | text ->
         text.Replace("\r\n", "\n").Split('\n')
-        |> Array.fold
-            (fun acc line ->
-                acc
-                |> Result.bind (fun rows -> row line |> Result.map (fun parsed -> parsed :: rows)))
-            (Ok [])
-        |> Result.map (fun rows -> { Rows = List.rev rows })
+        |> Aoc.Parse.traverse row
+        |> Result.map (fun rows -> { Rows = rows })
