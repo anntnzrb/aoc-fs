@@ -1,4 +1,4 @@
-// approach: enumerate bridges from exposed port zero, keeping each component's identity and the strongest prefix
+// approach: enumerate bridges from exposed port zero, maximising strength and the lexicographic (length, strength) pair
 // cost: O(n B log n) time for B bridge prefixes and n components, O(n^2 log n) live DFS storage; one text parse and one preparation pass, then a piece scan per prefix
 // trade: an explicit depth-first frontier keeps search tail recursive; immutable used-id sets preserve duplicate pieces
 module Aoc.Y2017.Day24.Primary
@@ -13,9 +13,9 @@ let solve: Solver =
         |> Result.map (fun components ->
             let pieces = components |> List.mapi (fun id (Component(a, b)) -> id, a, b)
 
-            let rec search best =
+            let rec search strongest longest =
                 function
-                | [] -> best
+                | [] -> strongest, snd longest
                 | (port, strength, used) :: rest ->
                     let frontier =
                         pieces
@@ -28,6 +28,7 @@ let solve: Solver =
                                     pending)
                             rest
 
-                    search (max best strength) frontier
+                    search (max strongest strength) (max longest (Set.count used, strength)) frontier
 
-            Answers.both (search 0 [ 0, 0, Set.empty ] |> string) "0")
+            let strongest, longest = search 0 (0, 0) [ 0, 0, Set.empty ]
+            Answers.both (string strongest) (string longest))
