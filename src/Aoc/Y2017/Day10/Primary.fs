@@ -12,10 +12,7 @@ let private product lengths =
     | _ -> Error "knot hash must contain at least two marks"
 
 let private hash text =
-    text
-    |> Aoc.KnotHash.dense
-    |> Array.map (fun value -> value.ToString("x2", System.Globalization.CultureInfo.InvariantCulture))
-    |> String.concat ""
+    text |> Aoc.KnotHash.dense |> System.Convert.ToHexStringLower
 
 let solve: Solver =
     fun input ->
