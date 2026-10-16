@@ -22,10 +22,4 @@ let private direction =
 
 /// Parses a non-empty path, rejecting unknown or empty direction tokens.
 let parse (input: string) : Result<Direction list, string> =
-    input.Trim().Split(',')
-    |> Array.fold
-        (fun parsed token ->
-            parsed
-            |> Result.bind (fun path -> direction token |> Result.map (fun step -> step :: path)))
-        (Ok [])
-    |> Result.map List.rev
+    input.Trim().Split(',') |> Aoc.Parse.traverse direction
