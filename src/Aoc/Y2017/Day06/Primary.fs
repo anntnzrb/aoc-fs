@@ -1,6 +1,6 @@
-// approach: redistribute the first maximum bank and count transitions until a complete bank configuration repeats
+// approach: redistribute the first maximum bank; the first repeated configuration gives total cycles and the gap from its first visit
 // cost: O(c * n * log c) time, O(c * n) memory for c cycles and n banks; three parsing passes, then bank traversals per cycle
-// trade: immutable configurations give structural set keys; quotient and remainder replace individual block moves
+// trade: immutable configurations give structural map keys; first-visit indices recover both answers in one simulation
 module Aoc.Y2017.Day06.Primary
 
 open Aoc.Solution
@@ -27,16 +27,17 @@ let private redistribute (Banks(first, rest)) =
 
 let private cycles banks =
     Seq.unfold
-        (fun (banks, seen) ->
-            if Set.contains banks seen then
-                None
-            else
-                Some((), (redistribute banks, Set.add banks seen)))
-        (banks, Set.empty)
-    |> Seq.length
+        (fun (banks, seen, cycle) ->
+            let previous = Map.tryFind banks seen
+            Some((cycle, previous), (redistribute banks, Map.add banks cycle seen, cycle + 1)))
+        (banks, Map.empty, 0)
+    // Conserved blocks and a fixed number of banks guarantee a repeated configuration.
+    |> Seq.pick (fun (cycle, previous) -> previous |> Option.map (fun first -> cycle, cycle - first))
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun banks -> Answers.both (cycles banks |> string) "0")
+        |> Result.map (fun banks ->
+            let total, loop = cycles banks
+            Answers.both (string total) (string loop))
