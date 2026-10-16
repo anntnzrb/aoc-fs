@@ -47,11 +47,4 @@ let private instruction (line: string) =
 let parse (input: string) =
     match input.Trim() with
     | "" -> Error "empty program"
-    | text ->
-        text.Replace("\r\n", "\n").Split('\n')
-        |> Array.fold
-            (fun parsed line ->
-                parsed
-                |> Result.bind (fun instructions -> instruction line |> Result.map (fun item -> item :: instructions)))
-            (Ok [])
-        |> Result.map List.rev
+    | text -> text.Replace("\r\n", "\n").Split('\n') |> Aoc.Parse.traverse instruction
