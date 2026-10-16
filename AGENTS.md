@@ -412,11 +412,17 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
   tags.
 - Every solution file opens with a `//` header carrying `approach:`, `cost:`
   and `trade:` lines. Comment only decision points inside the code.
-- Solution modules (everything under `src/Aoc/`) are pure and referentially
-  transparent: no IO, no `printfn`, no clocks, no randomness, no global
-  mutable state. Local mutation inside one function (a `mutable` accumulator,
-  an array filled in a loop) is allowed when it is the natural model and does
-  not escape. IO lives only in `app/` and the test harness.
+- The codebase is functional, declarative and immutable. Solution modules
+  (everything under `src/Aoc/`) are pure and referentially transparent: no
+  IO, no `printfn`, no clocks, no randomness, and no mutation of any kind: no
+  `mutable`, no `<-`, no in-place array writes, no mutable collections
+  (`Dictionary`, `HashSet`, `ResizeArray`). A loop that no combinator
+  expresses is a local tail-recursive function whose parameters carry the
+  state; it compiles to the same loop. IO lives only in `app/` and the test
+  harness.
+- Mutation belongs only in an exploration that studies it, with its measured
+  gain against the primary in its `trade:` header. A primary that still
+  mutates is a known defect, listed as an open item in its year's journal.
 - Parse, don't validate: model the statement with DUs, records and
   single-case DUs so illegal states are unrepresentable; parse at the edge,
   keep the core total. String splitting and active patterns cover simple
@@ -429,17 +435,25 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
   `failwith`, `raise` or `invalidArg` in solutions; use `tryHead`, `tryFind`,
   `tryItem`, `Result` and `Option`. Exceptions only in `app/`. Incomplete
   pattern matches are compiler errors under the gate (warning 25).
-- Combinators over explicit recursion: `fold`, `scan`, `unfold`, `iter`
+- Combinators over explicit recursion: `fold`, `scan`, `unfold`, `map`
   families, `Map`, `Set`. Recurse by hand only where no combinator fits, and
   make it tail recursive.
-- Immutable by default: records, DUs, `list`, `Map`, `Set`. Use `array` or
-  `Array2D` for indexed or hot data. `seq` is lazy on purpose: infinite
-  streams, early termination; materialise before reusing a sequence twice.
+- Immutable always: records, DUs, `list`, `Map`, `Set`. `array` and
+  `Array2D` serve read-only indexed data, built whole with `init`, `map` or
+  `ofList` and replaced, never written in place. `seq` is lazy on purpose:
+  infinite streams, early termination; materialise before reusing a sequence
+  twice.
 - `string` is the solution interface type; `ReadOnlySpan<char>` and `byte[]`
   only where a hot path or hashing needs them, converted at the boundary.
-- No classes, interfaces, inheritance or object expressions in solutions
-  unless a .NET API requires them. No `null`; `Nullable` reference checking
-  stays enabled.
+- No object-oriented programming anywhere in the repository: no classes,
+  interfaces, inheritance, object expressions or members of our own. .NET
+  objects (`HttpClient`, files, processes) appear only as IO at the edges of
+  `app/`, consumed through functions. No `null`; `Nullable` reference
+  checking stays enabled.
+- Tests follow the same style: Expecto test lists of values, expected
+  values and property tests, no mutable setup. The only exception is a test
+  whose subject is a side effect (for example disposal): its mutable
+  observer carries a comment saying so.
 - From domain-driven design, only domain types and smart constructors; no
   aggregates, repositories or service layers.
 - `Aoc.Ops` keeps effects at its edges: pure decision logic in modules that
@@ -505,11 +519,11 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
 | --- | --- |
 | Parse | Active patterns, splitting, `Result` folds |
 | Grid | List expressions, coordinate records or DUs |
-| Simulation | `Seq.unfold`, `List.scan`, fixed points |
+| Simulation | `Seq.unfold`, `List.scan`, fixed points, tail-recursive `loop` |
 | Aggregate | Tuple folds, `countBy`, `sumBy` |
 | Search | `Set`, `Map`, explicit frontier |
 | Combinatorics | List expressions, recursion over choices |
-| Hot loop | `Array` with local `mutable`, inside one function |
+| Hot loop | Tail-recursive `loop` with immutable parameters; read-only arrays |
 
 ## Commands
 
