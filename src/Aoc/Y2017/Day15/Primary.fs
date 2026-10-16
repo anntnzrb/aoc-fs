@@ -8,10 +8,10 @@ open Aoc.Y2017.Day15.Input
 
 let private matches pairs multipleA multipleB (Seed startA) (Seed startB) =
     let next factor multiple previous =
-        let mutable value = previous * factor % 2147483647L
+        let mutable value = previous * factor % modulus
 
         while value % multiple <> 0L do
-            value <- value * factor % 2147483647L
+            value <- value * factor % modulus
 
         value
 

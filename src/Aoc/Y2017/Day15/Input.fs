@@ -9,12 +9,15 @@ type Seed = Seed of int64
 /// Starting values for the two generators.
 type Generators = { A: Seed; B: Seed }
 
+/// The modulus every generator step reduces by.
+let modulus = 2147483647L
+
 /// Parses the two labelled starting values in generator order.
 let parse (input: string) : Result<Generators, string> =
     let seed =
         pint64
         >>= fun value ->
-            if value >= 0L && value < 2147483647L then
+            if value >= 0L && value < modulus then
                 preturn (Seed value)
             else
                 fail "starting value must be between zero and the modulus"
