@@ -1,6 +1,6 @@
-// approach: interpret the decoded instructions, retaining the last sound until a nonzero receive
-// cost: O(t log r) time for t executed instructions and r registers, O(n+r) memory, one parsing pass
-// trade: immutable register maps keep default-zero reads explicit; an instruction array supports relative jumps
+// approach: interpret once for sound recovery, then run two independent machines to blocking receives and exchange FIFO messages
+// cost: O(n+t log r) time, O(n+r+q) memory for n instructions, t executed steps and q queued messages; parse then materialise, execution revisits instructions
+// trade: immutable register maps and two-list queues model isolation and FIFO delivery without threads; scheduling batches work until a receive blocks
 module Aoc.Y2017.Day18.Primary
 
 open Aoc.Solution
@@ -48,9 +48,88 @@ let private recover (program: Instruction array) =
 
     run 0L Map.empty None
 
+type private Machine =
+    {
+        Position: int64
+        Registers: Map<char, int64>
+        Inbox: int64 list * int64 list
+        Sent: int64
+    }
+
+let private dequeue =
+    function
+    | first :: rest, rear -> Some(first, (rest, rear))
+    | [], rear ->
+        match List.rev rear with
+        | [] -> None
+        | first :: rest -> Some(first, (rest, []))
+
+let private duet (program: Instruction array) =
+    let rec run machine outgoing =
+        if machine.Position < 0L || machine.Position >= int64 program.Length then
+            Ok(machine, List.rev outgoing)
+        else
+            let read = value machine.Registers
+
+            let next =
+                { machine with
+                    Position = machine.Position + 1L
+                }
+
+            match program[int machine.Position] with
+            | Sound operand -> run { next with Sent = next.Sent + 1L } (read operand :: outgoing)
+            | Update(target, operation, operand) ->
+                update machine.Registers target operation operand
+                |> Result.bind (fun registers -> run { next with Registers = registers } outgoing)
+            | Receive(Register name) ->
+                match dequeue machine.Inbox with
+                | None -> Ok(machine, List.rev outgoing)
+                | Some(number, inbox) ->
+                    run
+                        { next with
+                            Registers = Map.add name number machine.Registers
+                            Inbox = inbox
+                        }
+                        outgoing
+            | Jump(condition, offset) ->
+                let position = machine.Position + if read condition > 0L then read offset else 1L
+                run { machine with Position = position } outgoing
+
+    let deliver messages machine =
+        let front, rear = machine.Inbox
+
+        { machine with
+            Inbox = front, List.fold (fun queued number -> number :: queued) rear messages
+        }
+
+    let rec exchange first second =
+        run first []
+        |> Result.bind (fun (first, messages) ->
+            run (deliver messages second) []
+            |> Result.bind (fun (second, messages) ->
+                // Both copies ran to a block or termination; only a new message can restart the first.
+                match messages with
+                | [] -> Ok second.Sent
+                | _ -> exchange (deliver messages first) second))
+
+    let machine id =
+        {
+            Position = 0L
+            Registers = Map.ofList [ 'p', id ]
+            Inbox = [], []
+            Sent = 0L
+        }
+
+    exchange (machine 0L) (machine 1L)
+
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.bind (List.toArray >> recover)
-        |> Result.map (fun frequency -> Answers.both (string frequency) "0")
+        |> Result.bind (fun instructions ->
+            let program = List.toArray instructions
+
+            recover program
+            |> Result.bind (fun frequency ->
+                duet program
+                |> Result.map (fun sent -> Answers.both (string frequency) (string sent))))
