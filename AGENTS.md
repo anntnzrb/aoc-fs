@@ -225,19 +225,17 @@ opportunities without expanding worker ownership.
 
 ## Status
 
-Setup is in progress on x86_64 Linux; macOS is not yet verified. No year is
-solved. Done: the Nix devshell, `global.json`, Central Package Management, the
-Fantomas local tool, the compiler settings under Toolchain, the pure library
-(`Aoc.Calendar`, `Aoc.Solution`, empty registries), the `aoc` filter
-(`app/Aoc.Cli`), the fixture runner, and `aoc-ops` (`app/Aoc.Ops`) with
-`fetch`, `puzzle`, `submit` and primary-only `new`, all tested offline. Not
-implemented: `new` for explorations (needs FsCheck), `doc`, `bench`, `record`,
-the analyzer stage, `bench/`, `docs/journal/` and the publishing remote. Live
-`fetch` and `puzzle` work against adventofcode.com with the user's `.env`
-(2017 day 1 cached); `submit` is verified offline only, and its first live run
-is the first authorized answer. Commands and
-checks marked *planned* do not exist yet. Never read another language's AoC
-repository: it contains solutions.
+Setup is done on x86_64 Linux; macOS is not yet verified. The per-year
+solved state lives in each `docs/journal/<YEAR>.md`. Done: the Nix devshell,
+`global.json`, Central Package Management, the Fantomas local tool, the compiler
+settings under Toolchain, the pure library (`Aoc.Calendar`, `Aoc.Solution`,
+registries), the `aoc` filter (`app/Aoc.Cli`), the fixture runner, and
+`aoc-ops` (`app/Aoc.Ops`) with `fetch`, `puzzle`, `submit` (verified live) and
+primary-only `new`. Shared modules now exist (`Aoc.KnotHash`, `Aoc.Parse`). Not
+implemented: `new` for explorations, `doc`, `bench`, `record`, the analyzer
+stage, `bench/`, and the publishing remote. Commands and checks marked *planned*
+do not exist yet. Never read another language's AoC repository: it contains
+solutions.
 
 ## Critical repository rules
 
@@ -253,11 +251,10 @@ repository: it contains solutions.
 
 ## Project
 
-Advent of Code, every year from 2015, in F#. The first year is 2017. The repo
-is learning material: it records how an agent reasons from a puzzle to an
-idiomatic solution, then explores what else the language offers on the same
-day. Targets: x86_64 Linux (main) and Apple silicon macOS (must also pass);
-nothing else.
+Advent of Code, every year from 2015, in F#. The repo is learning material:
+it records how an agent reasons from a puzzle to an idiomatic solution, then
+explores what else the language offers on the same day. Targets: x86_64 Linux
+(main) and Apple silicon macOS (must also pass); nothing else.
 
 ## Architecture
 
@@ -271,8 +268,8 @@ Directory.Build.props         shared compiler settings (the strictness standard)
 Directory.Packages.props      every package version (CPM)
 src/Aoc/                      library: every solution, all pure
   Solution.fs                 the solver interface
-  Y2017/
-    Day01/
+  Y<YEAR>/
+    Day<DD>/
       Input.fs                domain types and parser, written once per day
       Primary.fs              the primary solution
       Recursive.fs            an exploration, named after its paradigm
@@ -284,30 +281,30 @@ app/Aoc.Ops/                  the workflow operations
 tests/Aoc.Tests/              Expecto suite on Microsoft.Testing.Platform
   Fixtures.fs                 fixture runner
   <Concept>Tests.fs           shared-module tests
-  Y2017/Day01Tests.fs         FsCheck generator and properties
+  Y<YEAR>/Day<DD>Tests.fs     FsCheck generator and properties
 templates/                    skeletons for `new`
-fixtures/2017/01/             p1-*.in|out, p2-*.in|out (ignored)
-inputs/2017/day01.txt         personal input (ignored)
-puzzles/2017/01.txt           statement (ignored)
+fixtures/<YEAR>/<DD>/         p1-*.in|out, p2-*.in|out (ignored)
+inputs/<YEAR>/day<DD>.txt     personal input (ignored)
+puzzles/<YEAR>/<DD>.txt       statement (ignored)
 .cache/                       scratch, audits, regression answers (ignored)
-bench/2017.csv                canonical benchmark records
+bench/<YEAR>.csv              canonical benchmark records
 bench/hosts/HOST.md           host snapshots
-docs/journal/2017.md          learning log
+docs/journal/<YEAR>.md        learning log
 ```
 
 - F# compiles in file order, so `.fsproj` order is architecture: shared
   modules, then each year's days (`Input.fs`, `Primary.fs`, explorations),
   then that year's `Registry.fs`, then the root `Registry.fs`. `new` owns
   these entries.
-- `Aoc.Solution` exports `Answers`, `Solver = string -> Result<Answers, string>`
-  and `Answers.render`. `Answers` holds part 1 and optional part 2 as `string`; its
-  constructor is private, so solvers build it through `Answers.part1` and
+- `Aoc.Solution` exports `Answers`, `Solver = string -> Result<Answers, string>`,
+  `Variant` (`Primary | Exploration of string`), `Key` (year, day, variant)
+  and `Answers.render`. `Answers` holds part 1 and optional part 2 as `string`;
+  its constructor is private, so solvers build it through `Answers.part1` and
   `Answers.both`. `render` emits one answer per line, part 1 first.
-- `Aoc.Registry` exports `Key` (year, day, variant), `Variant`
-  (`Primary | Exploration of string`) and `solvers: Map<Key, Solver>`, merged
-  from each `Aoc.Y<YEAR>.Registry`. With no day solved, `solvers` is empty;
-  the dispatcher rejects unregistered keys when stdin is non-empty.
-- The fixture runner reads `fixtures/YEAR/DD/*.in` and matching `.out` files
+- `Aoc.Registry` exports `solvers: Map<Key, Solver>`, merged from each
+  `Aoc.Y<YEAR>.Registry`. With no day solved, `solvers` is empty; the
+  dispatcher rejects unregistered keys when stdin is non-empty.
+- The fixture runner reads `fixtures/<YEAR>/<DD>/*.in` and matching `.out` files
   for every registered solver. It compares the first k rendered lines, where k
   is the expected line count; empty or unterminated expectations fail.
   Missing fixture directories contribute no tests.
@@ -515,8 +512,8 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
 
 ```sh
 just new YEAR DAY             # scaffold a primary (aoc-ops new)
-just fetch YEAR DAY [--force] # inputs/YEAR/dayDD.txt (cached)
-just puzzle YEAR DAY          # puzzles/YEAR/DD.txt (always refreshed)
+just fetch YEAR DAY [--force] # inputs/<YEAR>/day<DD>.txt (cached)
+just puzzle YEAR DAY          # puzzles/<YEAR>/<DD>.txt (always refreshed)
 just submit YEAR DAY PART ANS # print the verdict; exit 0/1/2/3/4
 just run YEAR DAY [VARIANT]   # Release aoc on the cached input
 just test                     # dotnet test
@@ -567,16 +564,16 @@ and `AOC` row exists except Doc check, Bench and Record, which are *planned*.
 | Operation | Command or location |
 | --- | --- |
 | Establish repository | `git init -b main`; initial commit via the commit operation; `git remote add origin URL` with the user's publishing URL. `.gitignore` excludes `.env` variants, `inputs/`, `puzzles/`, `fixtures/`, `.cache/`, `bin/` and `obj/`; the user provisions `.env` locally, agents never handle it. |
-| Fetch | `OPS fetch YEAR DAY [--force]`; cache `inputs/YEAR/dayDD.txt`, reuse by default, `--force` re-fetches. Non-200 responses are never cached. |
-| Puzzle / refresh statement | `OPS puzzle YEAR DAY`; always refresh `puzzles/YEAR/DD.txt`, only day-desc articles, past-answer paragraphs removed. |
+| Fetch | `OPS fetch YEAR DAY [--force]`; cache `inputs/<YEAR>/day<DD>.txt`, reuse by default, `--force` re-fetches. Non-200 responses are never cached. |
+| Puzzle / refresh statement | `OPS puzzle YEAR DAY`; always refresh `puzzles/<YEAR>/<DD>.txt`, only day-desc articles, past-answer paragraphs removed. |
 | Submit | `OPS submit YEAR DAY PART ANSWER`; validates before network, prints article text including cooldown duration, exit codes 0/1/2/3/4 as above. |
 | New | `OPS new YEAR DAY [EXPLORATION]` (EXPLORATION is *planned*: it exits 4 today); refuse existing solution paths; create files from `templates/`, registry entries, `.fsproj` compile entries in dependency order, test entries and the fixture directory; format the result with Fantomas. Exploration names are PascalCase modules, CLI variant names are lowercase (`Recursive` becomes `recursive`). Adds a generated FsCheck property and grammar generator stub to replace from the statement. |
 | Test | `nix develop -c dotnet test`; offline operation tests, fixture comparisons, generated exploration properties. Require a nonzero executed test count. |
-| Run personal input | `AOC YEAR DAY < inputs/YEAR/dayDD.txt`; append lowercase EXPLORATION for a variant. |
+| Run personal input | `AOC YEAR DAY < inputs/<YEAR>/day<DD>.txt`; append lowercase EXPLORATION for a variant. |
 | Build | `nix develop -c dotnet build -c Release`; every project, warnings as errors. |
 | Doc check | *planned*: `OPS doc`; included in `just check`. |
 | Bench | *planned*: `OPS bench YEAR DAY`; publish the optimized `Aoc.Cli`, check every registered variant against the primary on cached real input, then measure per the Measurement standard: five interleaved full/empty `instructions:u` pairs with perf, pinned with `taskset` on Linux; 10 timing runs (3 above 1 s/run), interleaved across variants. Startup includes .NET runtime and JIT; the empty-input run cancels it out of work, not out of wall or RSS. Reports medians/ranges and limitations; never writes records. |
-| Record | *planned*: `OPS record YEAR DAY`; same measurement, requiring clean tracked main. Appends the shared schema to `bench/YEAR.csv` (`compiler` = SDK and runtime versions, `std` = F# language version), creates `bench/hosts/HOST.md` if absent. Unavailable metrics stay empty. |
+| Record | *planned*: `OPS record YEAR DAY`; same measurement, requiring clean tracked main. Appends the shared schema to `bench/<YEAR>.csv` (`compiler` = SDK and runtime versions, `std` = F# language version), creates `bench/hosts/HOST.md` if absent. Unavailable metrics stay empty. |
 | Full gate | `nix develop -c just check`. |
 | Commit | Use the autommit skill; run `uv run --script ~/.claude/skills/autommit/scripts/cli.py` bare, with no flags or arguments and nothing staged. If unavailable or unfamiliar staged work exists, stop and report; never discard that work or commit another way. |
 | Create isolated checkout | `git -C MAIN worktree add -b BRANCH WORK main` |
@@ -586,8 +583,8 @@ and `AOC` row exists except Doc check, Bench and Record, which are *planned*.
 | Day solution ownership | `src/Aoc/Y<YEAR>/Day<DD>/` |
 | Day test ownership | `tests/Aoc.Tests/Y<YEAR>/Day<DD>Tests.fs` |
 | Day fixture ownership | `fixtures/<YEAR>/<DD>/` |
-| Cached input / statement | `inputs/YEAR/dayDD.txt` / `puzzles/YEAR/DD.txt` |
-| Journal / host snapshot | `docs/journal/YEAR.md` / `bench/hosts/HOST.md` |
+| Cached input / statement | `inputs/<YEAR>/day<DD>.txt` / `puzzles/<YEAR>/<DD>.txt` |
+| Journal / host snapshot | `docs/journal/<YEAR>.md` / `bench/hosts/HOST.md` |
 
 ## Project lessons
 

@@ -5,14 +5,14 @@ Run commands from the repository root in the locked Nix development shell:
 ```sh
 nix develop
 dotnet tool restore
-just run 2017 1
+just run <YEAR> <DAY>
 just test
 just check
 ```
 
-`just run YEAR DAY [EXPLORATION]` reads `inputs/<year>/dayDD.txt` and runs the
-Release CLI. Each answer occupies one line, part 1 first. No solvers are registered
-yet. Run `just fmt` to format F# files, or `just` to list commands.
+`just run YEAR DAY [EXPLORATION]` reads `inputs/<YEAR>/day<DD>.txt` and runs the
+Release CLI. Each answer occupies one line, part 1 first. Run `just fmt` to
+format F# files, or `just` to list commands.
 
 To supply stdin directly:
 
@@ -29,9 +29,10 @@ Non-empty input requires a registered solver.
 src/Aoc/                     Pure solution library
   Calendar.fs                Puzzle day ranges
   Solution.fs                Answers, solver and registry key contracts
-  Y2017/
-    Day01/                   Future Input.fs, Primary.fs and explorations
-    Registry.fs              Year registry (currently empty)
+  <Concept>.fs               Shared modules extracted on demand (Parse.fs ...)
+  Y<YEAR>/
+    Day<DD>/                 Input.fs, Primary.fs and explorations
+    Registry.fs              Year registry: (day, variant) -> solver
   Registry.fs                Combined year registries
 app/Aoc.Cli/                 Stdin-filter executable: aoc
 app/Aoc.Ops/                 Workflow executable: aoc-ops
@@ -52,11 +53,11 @@ reads it only when a network request is necessary, never for scaffolding or a
 cached fetch.
 
 ```sh
-just fetch 2017 1            # Reuse cached input
-just fetch 2017 1 --force    # Replace cached input
-just puzzle 2017 1           # Refresh plain puzzle articles, strip past answers
-just submit 2017 1 1 ANSWER  # Submit a validated answer token
-just new 2017 1              # Scaffold a primary, register and format it
+just fetch <YEAR> <DAY>            # Reuse cached input
+just fetch <YEAR> <DAY> --force    # Replace cached input
+just puzzle <YEAR> <DAY>           # Refresh plain puzzle articles, strip past answers
+just submit <YEAR> <DAY> 1 ANSWER  # Submit a validated answer token
+just new <YEAR> <DAY>              # Scaffold a primary, register and format it
 ```
 
 Run these through `nix develop -c just ...` or inside `nix develop`. Direct usage
@@ -68,10 +69,10 @@ writes replace files atomically. Submission exits 0 for right, 1 for wrong,
 
 ## Inputs and fixtures
 
-Place personal input in `inputs/<year>/dayDD.txt`, for example
-`inputs/2017/day01.txt`. Inputs and fixtures are ignored by Git.
+Place personal input in `inputs/<YEAR>/day<DD>.txt`. Inputs and fixtures are
+ignored by Git.
 
-Example fixtures live in `fixtures/<year>/<DD>/`: `p1-*.in` with one-line
+Example fixtures live in `fixtures/<YEAR>/<DD>/`: `p1-*.in` with one-line
 `p1-*.out`, and `p2-*.in` with two-line `p2-*.out`. Each expectation must end
 with a newline. The runner checks every registered implementation against each
 fixture, comparing only the expected number of answer lines. Missing fixture
