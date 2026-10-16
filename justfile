@@ -42,5 +42,8 @@ doc:
 lint:
     dotnet fsharplint lint --lint-config fsharplint.json aoc-fs.slnx
 
+# Run every analyzer in the pinned repository and Ionide assemblies.
+# Generated obj sources belong to the SDK/test adapter; their style diagnostics
+# cannot be fixed here and regeneration would discard edits.
 analyze:
-    dotnet fsharp-analyzers --project analyzers/Aoc.Analyzers/Aoc.Analyzers.fsproj src/Aoc/Aoc.fsproj app/Aoc.Cli/Aoc.Cli.fsproj app/Aoc.Ops/Aoc.Ops.fsproj tests/Aoc.Tests/Aoc.Tests.fsproj tests/Aoc.Analyzers.Tests/Aoc.Analyzers.Tests.fsproj --analyzers-path analyzers/Aoc.Analyzers/bin/Release/net10.0 --include-analyzers Aoc.Discipline --configuration Release --fail-on-type-errors --treat-as-error '*'
+    dotnet fsharp-analyzers --project analyzers/Aoc.Analyzers/Aoc.Analyzers.fsproj src/Aoc/Aoc.fsproj app/Aoc.Cli/Aoc.Cli.fsproj app/Aoc.Ops/Aoc.Ops.fsproj tests/Aoc.Tests/Aoc.Tests.fsproj tests/Aoc.Analyzers.Tests/Aoc.Analyzers.Tests.fsproj --analyzers-path analyzers/Aoc.Analyzers/bin/Release/net10.0 --exclude-files '**/obj/**' --configuration Release --fail-on-type-errors --treat-as-error '*'
