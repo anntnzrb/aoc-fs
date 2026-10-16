@@ -1,16 +1,39 @@
 /// Domain model and parser for this puzzle.
 module Aoc.Y2017.Day20.Input
 
-/// The input lines, in their original order.
-type Puzzle =
+open FParsec
+
+/// Integer coordinates along the three spatial axes.
+type Vector = Vector of x: int64 * y: int64 * z: int64
+
+/// A particle's initial position, velocity and constant acceleration.
+type Particle =
     {
-        /// Lines from the puzzle input.
-        Lines: string list
+        Position: Vector
+        Velocity: Vector
+        Acceleration: Vector
     }
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// Parses a non-empty list of particles in their identifying input order.
+let parse (input: string) : Result<Particle list, string> =
+    let coordinate = spaces >>. pint32 .>> spaces |>> int64
+
+    let vector =
+        between (pchar '<') (pchar '>') (tuple3 (coordinate .>> pchar ',') (coordinate .>> pchar ',') coordinate)
+        |>> Vector
+
+    let particle =
+        tuple3
+            (pstring "p=" >>. vector .>> pstring ", ")
+            (pstring "v=" >>. vector .>> pstring ", ")
+            (pstring "a=" >>. vector)
+        |>> fun (position, velocity, acceleration) ->
+            {
+                Position = position
+                Velocity = velocity
+                Acceleration = acceleration
+            }
+
+    match run (sepEndBy1 particle newline .>> eof) input with
+    | Success(particles, _, _) -> Result.Ok particles
+    | Failure(message, _, _) -> Result.Error message
