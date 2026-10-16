@@ -7,7 +7,8 @@ open Aoc.Solution
 open Aoc.Y2017.Day04.Input
 
 let private uniqueBy key words =
-    words |> List.map key |> Set.ofList |> Set.count = List.length words
+    let distinctCount = words |> List.map key |> Set.ofList |> Set.count
+    distinctCount = List.length words
 
 let solve: Solver =
     fun input ->
