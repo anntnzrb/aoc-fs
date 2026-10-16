@@ -1,42 +1,54 @@
 // approach: simulate turn, state transition and movement on a sparse grid, counting transitions into infection
-// cost: O((n + b) log(n + b)) time and O(n + b) memory for n map cells and b bursts; three parsed-cell passes for centring, then sparse traversals
-// trade: immutable maps represent an unbounded grid directly, at the cost of a tree update per burst
+// cost: expected O(n + b) time and O(n + b) memory for n map cells and b bursts; two text passes, one cell parse and three parsed-cell passes for centring
+// trade: a local dictionary keeps the grid unbounded without persistent-tree updates; mutation stays inside each independent simulation
 module Aoc.Y2017.Day22.Primary
 
+open System.Collections.Generic
 open Aoc.Solution
 open Aoc.Y2017.Day22.Input
 
 type private State =
     | Weakened
-    | Infectious
+    | Infected
     | Flagged
 
-let private infections evolved bursts infected =
-    let initial =
-        infected |> List.map (fun position -> position, Infectious) |> Map.ofList
+type private Mode =
+    | Basic
+    | Evolved
 
-    let _, _, _, count =
-        seq { 1..bursts }
-        |> Seq.fold
-            (fun (nodes, (x, y), (dx, dy), count) _ ->
-                let next, dx, dy, added =
-                    match Map.tryFind (x, y) nodes with
-                    | None ->
-                        if evolved then
-                            Some Weakened, dy, -dx, 0
-                        else
-                            Some Infectious, dy, -dx, 1
-                    | Some Weakened -> Some Infectious, dx, dy, 1
-                    | Some Infectious -> (if evolved then Some Flagged else None), -dy, dx, 0
-                    | Some Flagged -> None, -dx, -dy, 0
+let private infections mode bursts infected =
+    let nodes = Dictionary<struct (int * int), State>()
 
-                let nodes =
-                    match next with
-                    | None -> Map.remove (x, y) nodes
-                    | Some state -> Map.add (x, y) state nodes
+    for position in infected do
+        nodes[position] <- Infected
 
-                nodes, (x + dx, y + dy), (dx, dy), count + added)
-            (initial, (0, 0), (0, -1), 0)
+    let mutable x = 0
+    let mutable y = 0
+    let mutable dx = 0
+    let mutable dy = -1
+    let mutable count = 0
+
+    for _ in 1..bursts do
+        let position = struct (x, y)
+
+        let next, nextDx, nextDy, added =
+            match mode, nodes.TryGetValue position with
+            | Basic, (false, _) -> Some Infected, dy, -dx, 1
+            | Evolved, (false, _) -> Some Weakened, dy, -dx, 0
+            | _, (true, Weakened) -> Some Infected, dx, dy, 1
+            | Basic, (true, Infected) -> None, -dy, dx, 0
+            | Evolved, (true, Infected) -> Some Flagged, -dy, dx, 0
+            | _, (true, Flagged) -> None, -dx, -dy, 0
+
+        match next with
+        | None -> nodes.Remove position |> ignore
+        | Some state -> nodes[position] <- state
+
+        dx <- nextDx
+        dy <- nextDy
+        x <- x + dx
+        y <- y + dy
+        count <- count + added
 
     count
 
@@ -48,16 +60,14 @@ let solve: Solver =
             let centreY = List.length rows / 2
 
             let infected =
-                rows
-                |> List.mapi (fun y row ->
-                    let centreX = List.length row / 2
+                [
+                    for y, row in List.indexed rows do
+                        let centreX = List.length row / 2
 
-                    row
-                    |> List.indexed
-                    |> List.choose (fun (x, node) ->
-                        match node with
-                        | Clean -> None
-                        | Infected -> Some(x - centreX, y - centreY)))
-                |> List.concat
+                        for x, node in List.indexed row do
+                            match node with
+                            | Clean -> ()
+                            | Input.Infected -> yield struct (x - centreX, y - centreY)
+                ]
 
-            Answers.both (infections false 10000 infected |> string) (infections true 10000000 infected |> string))
+            Answers.both (infections Basic 10000 infected |> string) (infections Evolved 10000000 infected |> string))
