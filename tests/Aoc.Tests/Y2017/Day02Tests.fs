@@ -3,12 +3,43 @@ module Aoc.Tests.Y2017.Day02Tests
 open Expecto
 open Aoc.Solution
 open Aoc.Y2017.Day02
+open FsCheck.FSharp
+
+let private spreadsheet =
+    let row =
+        Gen.choose (1, 6)
+        |> Gen.bind (fun size -> Gen.listOfLength size (Gen.choose (1, 1000)))
+
+    Gen.choose (1, 6)
+    |> Gen.bind (fun size -> Gen.listOfLength size row)
+    |> Gen.map (fun rows ->
+        rows |> List.map (List.map string >> String.concat "\t") |> String.concat "\n",
+        rows |> List.map (List.map bigint))
 
 [<Tests>]
 let tests =
     testList
         "Y2017.Day02"
         [
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 40
+                }
+                "parser preserves spreadsheet rows"
+                (Prop.forAll (Arb.fromGen spreadsheet) (fun (text, rows) ->
+                    Input.parse text
+                    |> Result.map (fun sheet -> sheet.Rows |> List.map (fun (Input.Row(first, rest)) -> first :: rest))
+                        =
+                        Ok rows))
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 40
+                }
+                "solver is total on small spreadsheets"
+                (Prop.forAll (Arb.fromGen spreadsheet) (fun (text, _) ->
+                    match Primary.solve text with
+                    | Ok _
+                    | Error _ -> true))
             testCase "division checks either order without counting equal pairs twice" (fun () ->
                 // Differences are 6, 6 and 0; quotients are 4, 4 and 1, once per unordered pair.
                 Expect.equal
