@@ -1,33 +1,27 @@
-// approach: follow old offsets, then update the visited instruction by each part's rule in separate simulations
-// cost: O(n + s1 + s2) time, O(n) memory; parse once, two offset traversals per part, then indexed jumps
-// trade: local array mutation models changing instructions directly without copying the list at every step
+// approach: follow each old jump and persist the updated offset in an indexed map
+// cost: O(n log n + (s1 + s2) log n) time, O(n) live memory; one text pass and one indexed-offset pass
+// trade: persistent updates preserve every prior instruction state at the cost of tree allocation per jump
 module Aoc.Y2017.Day05.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day05.Input
 
-let private steps update (Instructions offsets) =
-    let jumps = offsets |> List.map int64 |> List.toArray
-    let mutable position = 0L
-    let mutable count = 0L
-
-    while position >= 0L && position < int64 jumps.Length do
-        let index = int position
-        let offset = jumps[index]
-        jumps[index] <- update offset
-        position <- position + offset
-        count <- count + 1L
-
-    count
+let rec private steps strange length position count jumps =
+    if position < 0L || position >= int64 length then
+        count
+    else
+        match Map.tryFind (int position) jumps with
+        | None -> count
+        | Some offset ->
+            let next = if strange && offset >= 3L then offset - 1L else offset + 1L
+            steps strange length (position + offset) (count + 1L) (Map.add (int position) next jumps)
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.map (fun instructions ->
-            let strange offset =
-                if offset >= 3L then offset - 1L else offset + 1L
+        Input.parse input
+        |> Result.map (fun (Instructions offsets) ->
+            let jumps = offsets |> List.mapi (fun i offset -> i, int64 offset) |> Map.ofList
 
             Answers.both
-                (steps (fun offset -> offset + 1L) instructions |> string)
-                (steps strange instructions |> string))
+                (steps false offsets.Length 0L 0L jumps |> string)
+                (steps true offsets.Length 0L 0L jumps |> string))
