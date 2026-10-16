@@ -1,16 +1,13 @@
 /// Domain model and parser for this puzzle.
 module Aoc.Y2017.Day03.Input
 
-/// The input lines, in their original order.
-type Puzzle =
-    {
-        /// Lines from the puzzle input.
-        Lines: string list
-    }
+/// The positive number identifying a memory square.
+type Square = Square of int
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// Parses one positive decimal square number, allowing surrounding whitespace.
+let parse (input: string) : Result<Square, string> =
+    let token = input.Trim()
+
+    match System.Int32.TryParse token with
+    | true, number when number > 0 && token |> Seq.forall System.Char.IsAsciiDigit -> Ok(Square number)
+    | _ -> Error "expected a positive decimal square number"
