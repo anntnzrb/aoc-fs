@@ -16,9 +16,4 @@ let private passphrase (line: string) =
 /// Parses the input into the puzzle domain model.
 let parse (input: string) : Result<Passphrase list, string> =
     input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n')
-    |> Array.fold
-        (fun result line ->
-            result
-            |> Result.bind (fun phrases -> passphrase line |> Result.map (fun phrase -> phrase :: phrases)))
-        (Ok [])
-    |> Result.map List.rev
+    |> Aoc.Parse.traverse passphrase
