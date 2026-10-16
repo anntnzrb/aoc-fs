@@ -50,6 +50,4 @@ let parse (input: string) : Result<Instruction list, string> =
                 >>. pipe2 (operand .>> gap) operand (fun x y -> Jump(x, y))
             ]
 
-    match run (sepEndBy1 instruction newline .>> eof) input with
-    | Success(program, _, _) -> Result.Ok program
-    | Failure(message, _, _) -> Result.Error message
+    Aoc.Parse.run (sepEndBy1 instruction newline .>> eof) input
