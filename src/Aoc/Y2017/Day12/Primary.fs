@@ -21,7 +21,7 @@ let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun programs ->
+        |> Result.bind (fun programs ->
             let unwrap (ProgramId id) = id
 
             let pipes =
@@ -29,17 +29,20 @@ let solve: Solver =
                 |> List.map (fun program -> unwrap program.Id, program.Connections |> List.map unwrap)
                 |> Map.ofList
 
-            let zeroGroup = group pipes Set.empty 0u
+            match Map.containsKey 0u pipes with
+            | false -> Error "program 0 is not declared"
+            | true ->
+                let zeroGroup = group pipes Set.empty 0u
 
-            let _, groups =
-                programs
-                |> List.fold
-                    (fun (seen, count) program ->
-                        let id = unwrap program.Id
+                let _, groups =
+                    programs
+                    |> List.fold
+                        (fun (seen, count) program ->
+                            let id = unwrap program.Id
 
-                        match Set.contains id seen with
-                        | true -> seen, count
-                        | false -> group pipes seen id, count + 1)
-                    (zeroGroup, 1)
+                            match Set.contains id seen with
+                            | true -> seen, count
+                            | false -> group pipes seen id, count + 1)
+                        (zeroGroup, 1)
 
-            Answers.both (zeroGroup |> Set.count |> string) (string groups))
+                Ok(Answers.both (zeroGroup |> Set.count |> string) (string groups)))
