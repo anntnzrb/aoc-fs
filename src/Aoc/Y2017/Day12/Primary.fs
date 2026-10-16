@@ -22,20 +22,24 @@ let solve: Solver =
         input
         |> Input.parse
         |> Result.map (fun programs ->
+            let unwrap (ProgramId id) = id
+
             let pipes =
                 programs
-                |> List.map (fun program -> program.Id, program.Connections)
+                |> List.map (fun program -> unwrap program.Id, program.Connections |> List.map unwrap)
                 |> Map.ofList
 
-            let zeroGroup = group pipes Set.empty (ProgramId 0u)
+            let zeroGroup = group pipes Set.empty 0u
 
             let _, groups =
                 programs
                 |> List.fold
                     (fun (seen, count) program ->
-                        match Set.contains program.Id seen with
+                        let id = unwrap program.Id
+
+                        match Set.contains id seen with
                         | true -> seen, count
-                        | false -> group pipes seen program.Id, count + 1)
+                        | false -> group pipes seen id, count + 1)
                     (zeroGroup, 1)
 
             Answers.both (zeroGroup |> Set.count |> string) (string groups))
