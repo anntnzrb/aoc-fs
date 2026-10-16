@@ -1,6 +1,6 @@
-// approach: walk from the top entrance, preserving direction at crossings and collecting letters and counting every visited cell
-// cost: O(n + s) time, O(n + l) memory for n input characters, s visited cells and l letters; line splitting and character validation passes, then one path traversal
-// trade: indexed rows preserve diagram geometry without building a graph; a lazy unfold carries only position and heading
+// approach: walk from the top entrance, preserving direction at crossings, then derive letters and step count from the visited cells
+// cost: O(n + s) time and memory for n input characters and s visited cells; line splitting and character validation passes, then one path walk and one letter-filter pass
+// trade: indexed rows preserve diagram geometry without building a graph; materialising the path simplifies both answers at the cost of storing every visited cell
 module Aoc.Y2017.Day19.Primary
 
 open Aoc.Solution
@@ -31,22 +31,13 @@ let private walk diagram =
 
                 Some(c, (advance position heading, heading)))
         ((diagram.Entrance, 0), (0, 1))
-    |> Seq.fold
-        (fun (letters, steps) c ->
-            let letters =
-                if System.Char.IsAsciiLetterUpper c then
-                    c :: letters
-                else
-                    letters
-
-            letters, steps + 1)
-        ([], 0)
-    |> fun (letters, steps) -> (letters |> List.rev |> List.toArray |> System.String), steps
+    |> Seq.toArray
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
         |> Result.map (fun diagram ->
-            let letters, steps = walk diagram
-            Answers.both letters (string steps))
+            let path = walk diagram
+            let letters = path |> Array.filter System.Char.IsAsciiLetterUpper |> System.String
+            Answers.both letters (string path.Length))
