@@ -1,12 +1,12 @@
-// approach: interpret conditional updates in order, then take the largest final register value
-// cost: O(n log r) time, O(n + r) memory; one parsing pass and one execution pass, then scan r registers
+// approach: interpret conditional updates while tracking the highest value, then find the final maximum
+// cost: O(n log r) time, O(n + r) memory; parse, reverse and execute n instructions, then scan r registers
 // trade: an immutable map directly models named registers while absent reads default to zero
 module Aoc.Y2017.Day08.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day08.Input
 
-let private execute registers instruction =
+let private execute (registers, highest) instruction =
     let read name =
         registers |> Map.tryFind name |> Option.defaultValue 0L
 
@@ -29,21 +29,25 @@ let private execute registers instruction =
         | true, Increase -> current + instruction.Amount
         | true, Decrease -> current - instruction.Amount
 
-    registers
-    |> Map.add instruction.Source source
-    |> Map.add instruction.Target updated
+    let registers =
+        registers
+        |> Map.add instruction.Source source
+        |> Map.add instruction.Target updated
+
+    registers, max highest updated
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
         |> Result.map (fun instructions ->
+            let registers, highest = instructions |> List.fold execute (Map.empty, 0L)
+
             let largest =
-                instructions
-                |> List.fold execute Map.empty
+                registers
                 |> Map.fold
                     (fun largest _ value -> Some(largest |> Option.map (max value) |> Option.defaultValue value))
                     None
                 |> Option.defaultValue 0L
 
-            Answers.both (string largest) "0")
+            Answers.both (string largest) (string highest))
