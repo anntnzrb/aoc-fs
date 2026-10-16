@@ -1,5 +1,5 @@
 // approach: interpret each blueprint transition, storing only tape positions containing one; their count is the checksum
-// cost: O(n + (s + q) log(q + 1)) expected time, O(n + q + t) memory for input size n, s steps, q states and peak t ones; one input pass
+// cost: O(n + (s + q) log(q + 1)) expected time with amortized O(1) hash-set operations, O(n + q + t) memory for input size n, s steps, q states and peak t ones; one input pass
 // trade: a local mutable hash set avoids allocating a persistent tape on every step while preserving a pure solver boundary
 module Aoc.Y2017.Day25.Primary
 
@@ -17,7 +17,7 @@ let private checksum blueprint =
         match Map.tryFind state blueprint.States with
         | None -> error <- Some "undefined machine state"
         | Some rules ->
-            let action = if ones.Contains cursor then rules.One else rules.Zero
+            let action = if ones.Contains cursor then rules.IfOne else rules.IfZero
 
             match action.Write with
             | Zero -> ones.Remove cursor |> ignore

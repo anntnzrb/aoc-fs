@@ -20,7 +20,7 @@ type Action =
         Next: State
     }
 
-type Rules = { Zero: Action; One: Action }
+type Rules = { IfZero: Action; IfOne: Action }
 
 type Blueprint =
     {
@@ -51,7 +51,7 @@ let parse (input: string) : Result<Blueprint, string> =
                 })
 
     let rules =
-        pipe3 (named "In state" ":") (action 0) (action 1) (fun name zero one -> name, { Zero = zero; One = one })
+        pipe3 (named "In state" ":") (action 0) (action 1) (fun name zero one -> name, { IfZero = zero; IfOne = one })
 
     let blueprint =
         spaces
@@ -64,27 +64,29 @@ let parse (input: string) : Result<Blueprint, string> =
             (fun start steps states -> start, steps, states)
         .>> eof
 
-    match run blueprint input with
-    | Failure(message, _, _) -> Result.Error message
-    | Success((start, steps, definitions), _, _) ->
+    input
+    |> Aoc.Parse.run blueprint
+    |> Result.bind (fun (start, steps, definitions) ->
         let states = Map.ofList definitions
 
         let referenced =
             start
             :: [
                 for _, rules in definitions do
-                    yield rules.Zero.Next
-                    yield rules.One.Next
+                    yield rules.IfZero.Next
+                    yield rules.IfOne.Next
             ]
 
-        if steps < 0 || states.Count <> definitions.Length then
-            Result.Error "expected non-negative steps and unique state definitions"
-        elif referenced |> List.exists (fun name -> not (Map.containsKey name states)) then
-            Result.Error "undefined machine state"
-        else
+        match
+            steps < 0 || states.Count <> definitions.Length,
+            referenced |> List.exists (fun name -> not (Map.containsKey name states))
+        with
+        | true, _ -> Result.Error "expected non-negative steps and unique state definitions"
+        | _, true -> Result.Error "undefined machine state"
+        | false, false ->
             Result.Ok
                 {
                     Start = start
                     Steps = steps
                     States = states
-                }
+                })
