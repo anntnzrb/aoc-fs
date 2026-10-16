@@ -64,5 +64,6 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Core" />
     <PackageReference Include="FParsec" />
+    <PackageReference Include="FsToolkit.ErrorHandling" />
   </ItemGroup>
 </Project>
