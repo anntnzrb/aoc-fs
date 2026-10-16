@@ -5,6 +5,7 @@ module Aoc.Y2017.Day20.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day20.Input
+open FsToolkit.ErrorHandling
 
 let private axes particle =
     let (Vector(px, py, pz)) = particle.Position
@@ -117,19 +118,21 @@ let private survivors particles =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun particles ->
-            particles
-            |> List.indexed
-            |> List.fold
-                (fun closest (index, particle) ->
-                    let candidate = distancePolynomial particle, index
+        result {
+            let! particles = Input.parse input
 
-                    match closest with
-                    | Some best -> Some(min best candidate)
-                    | None -> Some candidate)
-                None
-            |> function
-                | Some(_, index) -> Ok(Answers.both (string index) (survivors particles |> string))
-                | None -> Error "no particles")
+            let! _, index =
+                particles
+                |> List.indexed
+                |> List.fold
+                    (fun closest (index, particle) ->
+                        let candidate = distancePolynomial particle, index
+
+                        match closest with
+                        | Some best -> Some(min best candidate)
+                        | None -> Some candidate)
+                    None
+                |> Result.requireSome "no particles"
+
+            return Answers.both (string index) (survivors particles |> string)
+        }
