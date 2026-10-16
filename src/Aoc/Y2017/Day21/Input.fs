@@ -35,10 +35,4 @@ let parse (input: string) : Result<Rule list, string> =
                     | _ -> Error "expected a 2-to-3 or 3-to-4 enhancement"))
         | _ -> Error "expected source => target"
 
-    input.Trim().Split('\n')
-    |> Array.fold
-        (fun result line ->
-            result
-            |> Result.bind (fun rules -> rule (line.Trim()) |> Result.map (fun next -> next :: rules)))
-        (Ok [])
-    |> Result.map List.rev
+    input.Trim().Split('\n') |> Aoc.Parse.traverse (fun line -> rule (line.Trim()))
