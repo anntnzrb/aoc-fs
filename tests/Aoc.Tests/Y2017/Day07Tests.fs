@@ -3,12 +3,65 @@ module Aoc.Tests.Y2017.Day07Tests
 open Expecto
 open Aoc.Solution
 open Aoc.Y2017.Day07
+open FsCheck.FSharp
+
+let private tower =
+    gen {
+        let! count = Gen.choose (1, 12)
+        let! arity = Gen.choose (2, 4)
+        let! weights = Gen.listOfLength count (Gen.choose (0, 100))
+        let! reverse = Gen.elements [ false; true ]
+        let name index = "p" + string (char (int 'a' + index))
+
+        let descriptions =
+            weights
+            |> List.mapi (fun index weight ->
+                let children =
+                    [ arity * index + 1 .. min (count - 1) (arity * index + arity) ]
+                    |> List.map name
+
+                name index, weight, children)
+            |> fun descriptions -> if reverse then List.rev descriptions else descriptions
+
+        let text =
+            descriptions
+            |> List.map (fun (name, weight, children) ->
+                let suffix =
+                    if List.isEmpty children then
+                        ""
+                    else
+                        " -> " + String.concat ", " children
+
+                $"{name} ({weight}){suffix}")
+            |> String.concat "\n"
+
+        return text, descriptions
+    }
 
 [<Tests>]
 let tests =
     testList
         "Y2017.Day07"
         [
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 40
+                }
+                "parser preserves generated tower descriptions"
+                (Prop.forAll (Arb.fromGen tower) (fun (text, descriptions) ->
+                    Input.parse text
+                    |> Result.map (List.map (fun program -> program.Name, program.Weight, program.Children))
+                        =
+                        Ok descriptions))
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 40
+                }
+                "solver is total on small towers"
+                (Prop.forAll (Arb.fromGen tower) (fun (text, _) ->
+                    match Primary.solve text with
+                    | Ok _
+                    | Error _ -> true))
             testCase "preserves program and child order with trimmed CRLF input" (fun () ->
                 let parsed =
                     Input.parse " \t\r\nroot (0) -> z, a\r\nz (01)\r\na (2147483647)\r\n\r\n\t "
