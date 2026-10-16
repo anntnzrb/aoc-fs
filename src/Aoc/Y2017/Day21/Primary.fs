@@ -11,11 +11,12 @@ let private grid (rows: string list) =
     Array2D.init rows.Length rows.Length (fun y x -> rows[y][x] = '#')
 
 let private key size top left (image: bool[,]) =
-    let mutable bits = 0
-
-    for y in 0 .. size - 1 do
-        for x in 0 .. size - 1 do
-            bits <- (bits <<< 1) ||| (if image[top + y, left + x] then 1 else 0)
+    let bits =
+        [
+            for y in 0 .. size - 1 do
+                for x in 0 .. size - 1 -> y, x
+        ]
+        |> List.fold (fun bits (y, x) -> (bits <<< 1) ||| (if image[top + y, left + x] then 1 else 0)) 0
 
     size, bits
 
@@ -56,26 +57,18 @@ let private enhance (lookup: Map<int * int, bool[,]>) (image: bool[,]) =
     |> Aoc.Parse.traverse (fun (y, x) ->
         match lookup |> Map.tryFind (key block (y * block) (x * block) image) with
         | None -> Error "no enhancement rule matches a block"
-        | Some target -> Ok(y, x, target))
+        | Some target -> Ok target)
     |> Result.map (fun targets ->
-        let output = Array2D.zeroCreate<bool> (blocks * (block + 1)) (blocks * (block + 1))
+        let targets = targets |> List.toArray
+        let expanded = block + 1
+        let outputSize = blocks * expanded
 
-        for y, x, target in targets do
-            for dy in 0..block do
-                for dx in 0..block do
-                    output[y * (block + 1) + dy, x * (block + 1) + dx] <- target[dy, dx]
-
-        output)
+        Array2D.init outputSize outputSize (fun y x ->
+            let target = targets[(y / expanded) * blocks + x / expanded]
+            target[y % expanded, x % expanded]))
 
 let private count image =
-    let mutable total = 0
-
-    image
-    |> Array2D.iter (fun on ->
-        if on then
-            total <- total + 1)
-
-    total
+    image |> Seq.cast<bool> |> Seq.sumBy (fun on -> if on then 1 else 0)
 
 let solve: Solver =
     fun input ->
