@@ -29,18 +29,20 @@ let private dance moves lineup =
         lineup
 
 let private power count (permutation: char array) =
-    let mutable remaining = count
-    let mutable result = [| 'a' .. 'p' |]
-    let mutable squared = permutation
+    let rec loop remaining result (squared: char array) =
+        if remaining <= 0 then
+            result
+        else
+            let nextResult =
+                if remaining % 2 = 1 then
+                    result |> Array.map (fun name -> squared[int name - int 'a'])
+                else
+                    result
 
-    while remaining > 0 do
-        if remaining % 2 = 1 then
-            result <- result |> Array.map (fun name -> squared[int name - int 'a'])
+            let nextSquared = squared |> Array.map (fun name -> squared[int name - int 'a'])
+            loop (remaining / 2) nextResult nextSquared
 
-        squared <- squared |> Array.map (fun name -> squared[int name - int 'a'])
-        remaining <- remaining / 2
-
-    result
+    loop count [| 'a' .. 'p' |] permutation
 
 let solve: Solver =
     fun input ->
