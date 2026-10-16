@@ -1,14 +1,45 @@
 module Aoc.Tests.Y2017.Day16Tests
 
 open Expecto
+open FsCheck.FSharp
 open Aoc.Solution
 open Aoc.Y2017.Day16
+
+let private dances =
+    let move =
+        Gen.oneof
+            [
+                Gen.choose (0, 1000) |> Gen.map (fun n -> $"s{n}", Input.Spin n)
+                Gen.zip (Gen.choose (0, 15)) (Gen.choose (0, 15))
+                |> Gen.map (fun (a, b) -> $"x{a}/{b}", Input.Exchange(a, b))
+                Gen.zip (Gen.elements [ 'a' .. 'p' ]) (Gen.elements [ 'a' .. 'p' ])
+                |> Gen.map (fun (a, b) -> $"p{a}/{b}", Input.Partner(a, b))
+            ]
+
+    Gen.nonEmptyListOf move
+    |> Gen.map (fun moves -> moves |> List.map fst |> String.concat ",", List.map snd moves)
 
 [<Tests>]
 let tests =
     testList
         "Y2017.Day16"
         [
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 30
+                    endSize = 12
+                }
+                "parser preserves generated dance moves"
+                (Prop.forAll (Arb.fromGen dances) (fun (text, expected) -> Input.parse text = Ok expected))
+            testPropertyWithConfig
+                { FsCheckConfig.defaultConfig with
+                    maxTest = 30
+                    endSize = 12
+                }
+                "solver is total on generated dances"
+                (Prop.forAll (Arb.fromGen dances) (fun (text, _) ->
+                    Primary.solve text |> ignore
+                    true))
             testCase "parses all move forms in order with outer whitespace" (fun () ->
                 match Input.parse " \ns0,x0/15,pa/p\r\n " with
                 | Ok [ Input.Spin 0; Input.Exchange(0, 15); Input.Partner('a', 'p') ] -> ()
