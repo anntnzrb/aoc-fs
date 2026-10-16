@@ -2,7 +2,15 @@
 module Aoc.Y2017.Day23.Input
 
 /// One of the eight registers a through h.
-type Register = Register of char
+type Register =
+    | A
+    | B
+    | C
+    | D
+    | E
+    | F
+    | G
+    | H
 
 /// An immediate integer or a register's current value.
 type Operand =
@@ -17,8 +25,15 @@ type Instruction =
     | Jump of Operand * Operand
 
 let private register (text: string) =
-    match Seq.toList text with
-    | [ name ] when name >= 'a' && name <= 'h' -> Ok(Register name)
+    match text with
+    | "a" -> Ok A
+    | "b" -> Ok B
+    | "c" -> Ok C
+    | "d" -> Ok D
+    | "e" -> Ok E
+    | "f" -> Ok F
+    | "g" -> Ok G
+    | "h" -> Ok H
     | _ -> Error "expected register a through h"
 
 let private operand (text: string) =

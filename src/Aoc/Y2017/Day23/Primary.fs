@@ -1,27 +1,44 @@
 // approach: interpret part 1; replace a verified nested factor-search loop with trial division for part 2
-// cost: O(n+t+s+k sqrt(b)) time: n instructions, t/s literal steps, k factor loops bounded by b; O(n) memory, one parse pass
+// cost: O(n log(l+2)+t+(s+k) log(l+2)+k sqrt(b)) time: n instructions, l recognized loops, t/s literal steps, k accelerated loops bounded by b
+// cost: O(n+l) memory, one parse pass and six buffered passes
 // trade: local machine state stays literal except for a structurally checked loop; no input constants are embedded
 module Aoc.Y2017.Day23.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day23.Input
 
-let private index (Register name) = int name - int 'a'
+let private index =
+    function
+    | A -> 0
+    | B -> 1
+    | C -> 2
+    | D -> 3
+    | E -> 4
+    | F -> 5
+    | G -> 6
+    | H -> 7
+
+type private FactorLoop =
+    {
+        LeftFactor: int
+        RightFactor: int
+        Product: int
+        Bound: int
+        Flag: int
+    }
 
 let private factorLoops instructions =
     instructions
-    |> Seq.unfold (function
-        | [] -> None
-        | _ :: tail as remaining -> Some(remaining, tail))
-    |> Seq.indexed
-    |> Seq.fold
+    |> List.windowed 15
+    |> List.indexed
+    |> List.fold
         (fun result (position, remaining) ->
             result
             |> Result.bind (fun loops ->
                 match remaining with
                 | Set(_, Literal 2L) :: Set(_, Literal 2L) :: _ as remaining ->
                     // Only this exact, alias-free loop tests all d*e pairs in [2,b); reject other candidate shapes.
-                    match remaining |> List.truncate 15 with
+                    match remaining with
                     | [ Set(d, Literal 2L)
                         Set(e, Literal 2L)
                         Set(g, Read d1)
@@ -44,10 +61,33 @@ let private factorLoops instructions =
                         && b2 = b
                         && Set.count (Set.ofList [ d; e; g; b; f ]) = 5
                         ->
-                        Ok(Map.add position (index d, index e, index g, index b, index f) loops)
+                        let loop =
+                            {
+                                LeftFactor = index d
+                                RightFactor = index e
+                                Product = index g
+                                Bound = index b
+                                Flag = index f
+                            }
+
+                        Ok(Map.add position loop loops)
                     | _ -> Error "unsupported nested factor-loop structure"
                 | _ -> Ok loops))
         (Ok Map.empty)
+    |> Result.bind (fun loops ->
+        // Full windows omit the tail, where a truncated candidate must still be rejected.
+        let truncatedCandidate =
+            instructions
+            |> List.skip (max 0 (List.length instructions - 14))
+            |> List.pairwise
+            |> List.exists (function
+                | Set(_, Literal 2L), Set(_, Literal 2L) -> true
+                | _ -> false)
+
+        if truncatedCandidate then
+            Error "unsupported nested factor-loop structure"
+        else
+            Ok loops)
 
 let private composite number =
     Seq.unfold
@@ -61,7 +101,7 @@ let private composite number =
 
 let private execute initialA loops (program: Instruction array) =
     let registers = Array.zeroCreate<int64> 8
-    registers[0] <- initialA
+    registers[index A] <- initialA
 
     let value =
         function
@@ -72,41 +112,55 @@ let private execute initialA loops (program: Instruction array) =
     let mutable multiplications = 0L
     let mutable error = None
 
+    let update operation register source =
+        let target = index register
+        let result = operation (bigint registers[target]) (bigint (value source))
+
+        if result < bigint System.Int64.MinValue || result > bigint System.Int64.MaxValue then
+            error <- Some "register overflow"
+        else
+            registers[target] <- int64 result
+
     while position >= 0L && position < int64 program.Length && Option.isNone error do
         match Map.tryFind (int position) loops with
-        | Some(d, e, g, b, f) ->
-            let number = registers[b]
+        | Some loop ->
+            let number = registers[loop.Bound]
+            // The literal loop multiplies factors up to number-1; accelerate only when every product fits.
+            let squareFits =
+                number >= 3L && number - 1L <= System.Int64.MaxValue / (number - 1L)
 
             if number < 3L then
                 error <- Some "factor-loop bound must exceed two for termination"
-            elif number - 1L > System.Int64.MaxValue / (number - 1L) then
+            elif not squareFits then
                 error <- Some "factor-loop products exceed the integer range"
             else
                 if composite number then
-                    registers[f] <- 0L
+                    registers[loop.Flag] <- 0L
 
-                registers[d] <- number
-                registers[e] <- number
-                registers[g] <- 0L
+                registers[loop.LeftFactor] <- number
+                registers[loop.RightFactor] <- number
+                registers[loop.Product] <- 0L
                 position <- position + 15L
         | None ->
-            let mutable offset = 1L
-
-            match program[int position] with
-            | Set(register, source) -> registers[index register] <- value source
-            | Sub(register, source) -> registers[index register] <- registers[index register] - value source
-            | Mul(register, source) ->
-                registers[index register] <- registers[index register] * value source
-                multiplications <- multiplications + 1L
-            | Jump(condition, distance) ->
-                if value condition <> 0L then
-                    offset <- value distance
+            let offset =
+                match program[int position] with
+                | Set(register, source) ->
+                    registers[index register] <- value source
+                    1L
+                | Sub(register, source) ->
+                    update (-) register source
+                    1L
+                | Mul(register, source) ->
+                    update (*) register source
+                    multiplications <- multiplications + 1L
+                    1L
+                | Jump(condition, distance) -> if value condition <> 0L then value distance else 1L
 
             position <- position + offset
 
     match error with
     | Some message -> Error message
-    | None -> Ok(multiplications, registers[7])
+    | None -> Ok(multiplications, registers[index H])
 
 let solve: Solver =
     fun input ->
