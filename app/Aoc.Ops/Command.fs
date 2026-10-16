@@ -2,6 +2,7 @@
 module Aoc.Ops.Command
 
 open System
+open System.Text.RegularExpressions
 open Aoc
 
 /// A validated operation and puzzle date.
@@ -14,6 +15,19 @@ type Operation =
     | Submit of year: int * day: int * part: int * answer: string
     /// Scaffold a primary solution.
     | New of year: int * day: int
+    /// Scaffold a named exploration beside an existing primary.
+    | NewExploration of year: int * day: int * name: string
+
+/// Accepts ASCII PascalCase module identifiers except the two reserved day modules.
+let explorationName (name: string) =
+    if
+        Regex.IsMatch(name, @"\A[A-Z][A-Za-z0-9]*\z")
+        && name <> "Primary"
+        && name <> "Input"
+    then
+        Ok name
+    else
+        Error "exploration must be a PascalCase identifier other than Primary or Input"
 
 /// Rejects malformed dates, unsupported operations and invalid submissions.
 let parse (args: string array) : Result<Operation, string> =
@@ -29,7 +43,10 @@ let parse (args: string array) : Result<Operation, string> =
     | [| "submit"; year; day; part; answer |] ->
         Submission.validate part answer
         |> Result.bind (fun (part, answer) -> date year day (fun y d -> Submit(y, d, part, answer)))
-    | [| "new"; _; _; _ |] -> Error "explorations are not supported yet"
+    | [| "new"; year; day; name |] ->
+        explorationName name
+        |> Result.bind (fun name -> date year day (fun y d -> NewExploration(y, d, name)))
     | [| "new"; year; day |] -> date year day (fun y d -> New(y, d))
     | _ ->
-        Error "Usage: aoc-ops fetch YEAR DAY [--force] | puzzle YEAR DAY | submit YEAR DAY PART ANSWER | new YEAR DAY"
+        Error
+            "Usage: aoc-ops fetch YEAR DAY [--force] | puzzle YEAR DAY | submit YEAR DAY PART ANSWER | new YEAR DAY [EXPLORATION]"

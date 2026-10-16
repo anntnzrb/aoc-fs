@@ -1,0 +1,9 @@
+
+[<Tests>]
+let {{EXPLORATION}}Tests =
+    // TODO replace this placeholder with a generator for the statement's grammar.
+    let inputs = FsCheck.FSharp.Gen.constant ""
+    let property =
+        FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun input ->
+            Aoc.Y{{YEAR}}.Day{{DAY}}.{{EXPLORATION}}.solve input = Aoc.Y{{YEAR}}.Day{{DAY}}.Primary.solve input)
+    testProperty "Y{{YEAR}}.Day{{DAY}}.{{VARIANT}} agrees with primary" property

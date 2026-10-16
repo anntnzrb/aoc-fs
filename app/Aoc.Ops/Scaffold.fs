@@ -27,12 +27,33 @@ let private days year paths =
     |> List.distinct
     |> List.sort
 
-/// Renders a year's registry from the days with Primary.fs, sorted numerically.
+let private explorations year day paths =
+    matching (sprintf @"\AY%d/Day%02d/([A-Z][A-Za-z0-9]*)\.fs\z" year day) paths
+    |> List.map (fun matched -> matched.Groups[1].Value)
+    |> List.filter (fun name -> name <> "Input" && name <> "Primary")
+    |> List.distinct
+    |> List.sort
+
+/// Substitutes an exploration's PascalCase module name and lowercase CLI variant.
+let exploration year day (name: string) template =
+    render year day template
+    |> fun text -> text.Replace("{{EXPLORATION}}", name).Replace("{{VARIANT}}", name.ToLowerInvariant())
+
+/// Renders primary and exploration entries, sorted by day then module name.
 let yearRegistry (template: string) year paths =
     let entries =
         days year paths
-        |> List.map (fun day ->
-            sprintf "        { Year = %d; Day = %d; Variant = Primary }, Day%02d.Primary.solve" year day day)
+        |> List.collect (fun day ->
+            sprintf "        { Year = %d; Day = %d; Variant = Primary }, Day%02d.Primary.solve" year day day
+            :: (explorations year day paths
+                |> List.map (fun name ->
+                    sprintf
+                        "        { Year = %d; Day = %d; Variant = Exploration \"%s\" }, Day%02d.%s.solve"
+                        year
+                        day
+                        (name.ToLowerInvariant())
+                        day
+                        name)))
 
     let body =
         match entries with

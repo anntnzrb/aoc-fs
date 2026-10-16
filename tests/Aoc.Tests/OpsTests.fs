@@ -95,11 +95,29 @@ let tests =
                         Expect.isError
                             (Command.parse [| "submit"; "2017"; "1"; "1"; "bad answer" |])
                             "Validate before IO")
-                    testCase "exploration refusal" (fun () ->
+                    testCase "exploration command" (fun () ->
                         Expect.equal
                             (Command.parse [| "new"; "2017"; "1"; "Recursive" |])
-                            (Error "explorations are not supported yet")
-                            "Primary only")
+                            (Ok(Command.NewExploration(2017, 1, "Recursive")))
+                            "Preserve module casing")
+                    for name in [ "Recursive"; "Fold2"; "DFS" ] do
+                        testCase ("valid exploration " + name) (fun () ->
+                            Expect.equal (Command.explorationName name) (Ok name) "Module identifier")
+                    for name in
+                        [
+                            ""
+                            "recursive"
+                            "Primary"
+                            "Input"
+                            "../Escape"
+                            "Bad.Name"
+                            "Bad-name"
+                            "Bad_name"
+                            "A\n"
+                            "Árbol"
+                        ] do
+                        testCase (sprintf "invalid exploration %A" name) (fun () ->
+                            Expect.isError (Command.parse [| "new"; "2017"; "1"; name |]) "Validate before IO")
                 ]
             testList
                 "Statement"
@@ -237,6 +255,65 @@ b</code></pre><ul><li>one</li><li>two &quot;quoted&quot;</li></ul><p>Your <em>pu
                             (rendered.IndexOf("Day01.Primary.solve") < rendered.IndexOf("Day03.Primary.solve")
                              && rendered.IndexOf("Day03.Primary.solve") < rendered.IndexOf("Day10.Primary.solve"))
                             "Ascending days")
+
+                    testCase "exploration registry maps lowercase variants" (fun () ->
+                        let rendered = Scaffold.yearRegistry (template "Registry") 2017 files
+
+                        Expect.stringContains
+                            rendered
+                            "Variant = Exploration \"alpha\" }, Day03.Alpha.solve"
+                            "Lowercase CLI key"
+
+                        Expect.stringContains
+                            rendered
+                            "Variant = Exploration \"zebra\" }, Day03.Zebra.solve"
+                            "Every exploration registered"
+
+                        Expect.isTrue
+                            (rendered.IndexOf("Day03.Primary.solve") < rendered.IndexOf("Day03.Alpha.solve")
+                             && rendered.IndexOf("Day03.Alpha.solve") < rendered.IndexOf("Day03.Zebra.solve"))
+                            "Primary before sorted explorations")
+
+                    testCase "exploration templates" (fun () ->
+                        let solution = Scaffold.exploration 2017 3 "Recursive" (template "Exploration")
+                        let tests = Scaffold.exploration 2017 3 "Recursive" (template "ExplorationTests")
+
+                        for tag in [ "// approach:"; "// cost:"; "// trade:" ] do
+                            Expect.stringContains solution tag "Required header"
+
+                        Expect.stringContains solution "module Aoc.Y2017.Day03.Recursive" "Module name"
+                        Expect.isFalse (solution.Contains "Primary") "Independent solution scaffold"
+                        Expect.stringContains tests "recursive agrees with primary" "Variant property"
+                        Expect.stringContains tests "FsCheck.FSharp.Prop.forAll" "Generated input comparison")
+
+                    for directory in [ false; true ] do
+                        testCase (sprintf "existing exploration path directory=%b" directory) (fun () ->
+                            let root =
+                                Path.Combine(Path.GetTempPath(), "aoc-scaffold-" + System.Guid.NewGuid().ToString("N"))
+
+                            let day = Path.Combine(root, "src/Aoc/Y2017/Day03")
+                            let path = Path.Combine(day, "Recursive.fs")
+
+                            try
+                                Directory.CreateDirectory day |> ignore
+
+                                if directory then
+                                    Directory.CreateDirectory path |> ignore
+                                else
+                                    File.WriteAllText(path, "preserve")
+
+                                Expect.throwsC
+                                    (fun () -> Program.scaffold root 2017 3 (Some "Recursive"))
+                                    (fun error ->
+                                        Expect.equal
+                                            error.Message
+                                            "refusing to overwrite an existing exploration path"
+                                            "Refuse before writes")
+
+                                if not directory then
+                                    Expect.equal (File.ReadAllText path) "preserve" "Existing file intact"
+                            finally
+                                Directory.Delete(root, true))
 
                     testCase "project XML preserved and repeatable" (fun () ->
                         let original =

@@ -1,0 +1,9 @@
+// approach: TODO
+// cost: TODO
+// trade: TODO compare with the primary's measurements
+module Aoc.Y{{YEAR}}.Day{{DAY}}.{{EXPLORATION}}
+
+open Aoc.Solution
+open Aoc.Y{{YEAR}}.Day{{DAY}}.Input
+
+let solve: Solver = fun input -> input |> Input.parse |> Result.map (fun _ -> Answers.both "0" "0")

@@ -94,38 +94,68 @@ let private format root paths =
     if child.ExitCode <> 0 then
         failwithf "Fantomas exited %d" child.ExitCode
 
-let private scaffold root year day =
+/// Creates a primary or exploration, refusing collisions and rolling back failed writes or formatting.
+let scaffold root year day exploration =
     let at path = Path.Combine(root, path)
     let dayPath = sprintf "src/Aoc/Y%d/Day%02d" year day
     let testPath = sprintf "tests/Aoc.Tests/Y%d/Day%02dTests.fs" year day
 
-    if
-        Directory.Exists(at dayPath)
-        || File.Exists(at dayPath)
-        || File.Exists(at testPath)
-        || Directory.Exists(at testPath)
-    then
-        failwith "refusing to overwrite an existing day or test path"
+    let solutionPath = dayPath + "/" + Option.defaultValue "Primary" exploration + ".fs"
+
+    match exploration with
+    | None ->
+        if
+            Directory.Exists(at dayPath)
+            || File.Exists(at dayPath)
+            || File.Exists(at testPath)
+            || Directory.Exists(at testPath)
+        then
+            failwith "refusing to overwrite an existing day or test path"
+    | Some _ ->
+        if File.Exists(at solutionPath) || Directory.Exists(at solutionPath) then
+            failwith "refusing to overwrite an existing exploration path"
+
+        if
+            not (File.Exists(at (dayPath + "/Primary.fs")))
+            || not (File.Exists(at (dayPath + "/Input.fs")))
+            || not (File.Exists(at testPath))
+        then
+            failwith "exploration requires an existing primary, input and day tests"
 
     let template name =
         File.ReadAllText(at ("templates/" + name + ".fs.template"))
 
     let created =
-        [
-            dayPath + "/Input.fs", Scaffold.render year day (template "Input")
-            dayPath + "/Primary.fs", Scaffold.render year day (template "Primary")
-            testPath, Scaffold.render year day (template "DayTests")
-        ]
+        match exploration with
+        | None ->
+            [
+                dayPath + "/Input.fs", Scaffold.render year day (template "Input")
+                solutionPath, Scaffold.render year day (template "Primary")
+                testPath, Scaffold.render year day (template "DayTests")
+            ]
+        | Some name ->
+            [
+                solutionPath, Scaffold.exploration year day name (template "Exploration")
+                testPath,
+                File.ReadAllText(at testPath)
+                + "\n"
+                + Scaffold.exploration year day name (template "ExplorationTests")
+            ]
 
     let libraryFiles =
         scan (at "src/Aoc")
-        @ [
-            sprintf "Y%d/Day%02d/Input.fs" year day
-            sprintf "Y%d/Day%02d/Primary.fs" year day
-        ]
+        @ (created
+           |> List.map fst
+           |> List.choose (fun path ->
+               if path.StartsWith("src/Aoc/", StringComparison.Ordinal) then
+                   Some(path.Substring(8))
+               else
+                   None))
+        |> List.distinct
 
     let testFiles =
         scan (at "tests/Aoc.Tests") @ [ sprintf "Y%d/Day%02dTests.fs" year day ]
+        |> List.distinct
 
     let libraryProject = "src/Aoc/Aoc.fsproj"
     let testProject = "tests/Aoc.Tests/Aoc.Tests.fsproj"
@@ -276,7 +306,10 @@ let private run root =
         Console.Out.Write text
         Submission.classify text
     | Command.New(year, day) ->
-        scaffold root year day
+        scaffold root year day None
+        0
+    | Command.NewExploration(year, day, name) ->
+        scaffold root year day (Some name)
         0
 
 [<EntryPoint>]
