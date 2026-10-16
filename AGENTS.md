@@ -387,7 +387,7 @@ docs/journal/2017.md          learning log
   entries, each with an XML comment giving its reason; `#nowarn` in source is
   banned.
 - The gate runs, all as errors: Release build of the solution, `dotnet test`,
-  Fantomas format drift (`fantomas --check`), and (*planned*) the doc check and
+  Fantomas format drift (`fantomas --check`; `.fantomasignore` skips `.cache/`), and (*planned*) the doc check and
   the F# analyzer stage. Checked arithmetic (`CheckForOverflowUnderflow`) is
   on for Debug builds and the test run, the closest equivalent of an integer
   sanitizer; Release builds keep unchecked arithmetic.
@@ -423,7 +423,7 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
 - Parse, don't validate: model the statement with DUs, records and
   single-case DUs so illegal states are unrepresentable; parse at the edge,
   keep the core total. String splitting and active patterns cover line
-  formats; FParsec enters with the first nested grammar.
+  formats; FParsec (pinned since 2017 day 09) handles nested grammars.
 - Total functions only: no `List.head`, `Seq.head`, `List.item`, `Array.get`
   on unchecked indexes, `Option.get`, `.Value`, `failwith`, `raise` or
   `invalidArg` in solutions; use `tryHead`, `tryFind`, `tryItem`, `Result`
