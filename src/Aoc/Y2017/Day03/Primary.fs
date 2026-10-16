@@ -43,8 +43,7 @@ let solve: Solver =
         input
         |> Input.parse
         |> Result.bind (fun (Square number) ->
-            let x, y =
-                positions () |> Seq.take number |> Seq.fold (fun _ position -> position) (0, 0)
+            let x, y = positions () |> Seq.item (number - 1)
 
             match firstLarger number with
             | Some value -> Ok(Answers.both (abs x + abs y |> string) (string value))
