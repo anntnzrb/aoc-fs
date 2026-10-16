@@ -13,6 +13,7 @@
     <Compile Include="Y2017/Day02Tests.fs" />
     <Compile Include="Y2017/Day03Tests.fs" />
     <Compile Include="Y2017/Day04Tests.fs" />
+    <Compile Include="Y2017/Day05Tests.fs" />
     <!-- Day tests go in Y<YEAR>/Day<DD>Tests.fs. -->
   </ItemGroup>
   <ItemGroup>
