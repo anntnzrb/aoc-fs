@@ -9,16 +9,15 @@ open Aoc.Y2017.Day17.Input
 let private advance steps position value = (position + steps % value) % value + 1
 
 let private afterZero steps =
-    let mutable position = 0
-    let mutable successor = 0
+    let rec loop value position successor =
+        if value > 50_000_000 then
+            successor
+        else
+            let next = advance steps position value
+            // Insertion never precedes index zero, so only index one replaces its successor.
+            loop (value + 1) next (if next = 1 then value else successor)
 
-    for value in 1..50_000_000 do
-        position <- advance steps position value
-        // Insertion never precedes index zero, so only index one replaces its successor.
-        if position = 1 then
-            successor <- value
-
-    successor
+    loop 1 0 0
 
 let solve: Solver =
     fun input ->
