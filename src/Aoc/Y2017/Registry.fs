@@ -139,5 +139,11 @@ let solvers: Map<Key, Solver> =
             Variant = Primary
         },
         Day22.Primary.solve
+        {
+            Year = 2017
+            Day = 23
+            Variant = Primary
+        },
+        Day23.Primary.solve
     ]
     |> Map.ofList
