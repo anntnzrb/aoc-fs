@@ -18,33 +18,57 @@ let private update registers (Register name as target) operation operand =
     let old = registerValue registers target
     let number = value registers operand
 
-    match operation, number with
-    | Assign, _ -> Ok number
-    | Increase, _ -> Ok(old + number)
-    | Product, _ -> Ok(old * number)
-    | Remainder, 0L -> Error "modulo by zero"
-    | Remainder, _ -> Ok(old % number)
-    |> Result.map (fun result -> Map.add name result registers)
+    let bounded result =
+        if result < bigint System.Int64.MinValue || result > bigint System.Int64.MaxValue then
+            Error "register overflow"
+        else
+            Ok(int64 result)
+
+    let result =
+        match operation, number with
+        | Assign, _ -> Ok number
+        | Increase, _ -> bounded (bigint old + bigint number)
+        | Product, _ -> bounded (bigint old * bigint number)
+        | Remainder, 0L -> Error "modulo by zero"
+        | Remainder, -1L -> Ok 0L
+        | Remainder, _ -> Ok(old % number)
+
+    result |> Result.map (fun result -> Map.add name result registers)
+
+let private instructionAt (program: Instruction array) position =
+    if position < 0L || position >= int64 program.Length then
+        None
+    else
+        program |> Array.tryItem (int position)
+
+let private jumpTarget (position: int64) read condition offset =
+    let target =
+        bigint position + bigint (if read condition > 0L then read offset else 1L)
+    // Saturating an unrepresentable target preserves termination outside the program.
+    target
+    |> max (bigint System.Int64.MinValue)
+    |> min (bigint System.Int64.MaxValue)
+    |> int64
 
 let private recover (program: Instruction array) =
     let rec run position registers sound =
-        if position < 0L || position >= int64 program.Length then
-            Error "program terminated without recovery"
-        else
+        match instructionAt program position with
+        | None -> Error "program terminated without recovery"
+        | Some instruction ->
             let read = value registers
 
-            match program[int position] with
+            match instruction with
             | Sound operand -> run (position + 1L) registers (Some(read operand))
             | Update(target, operation, operand) ->
-                update registers target operation operand
-                |> Result.bind (fun next -> run (position + 1L) next sound)
+                match update registers target operation operand with
+                | Ok next -> run (position + 1L) next sound
+                | Error error -> Error error
             | Receive target when registerValue registers target <> 0L ->
                 match sound with
                 | Some frequency -> Ok frequency
                 | None -> Error "recovery before a sound"
             | Receive _ -> run (position + 1L) registers sound
-            | Jump(condition, offset) ->
-                run (position + if read condition > 0L then read offset else 1L) registers sound
+            | Jump(condition, offset) -> run (jumpTarget position read condition offset) registers sound
 
     run 0L Map.empty None
 
@@ -66,9 +90,9 @@ let private dequeue =
 
 let private duet (program: Instruction array) =
     let rec run machine outgoing =
-        if machine.Position < 0L || machine.Position >= int64 program.Length then
-            Ok(machine, List.rev outgoing)
-        else
+        match instructionAt program machine.Position with
+        | None -> Ok(machine, List.rev outgoing)
+        | Some instruction ->
             let read = value machine.Registers
 
             let next =
@@ -76,11 +100,12 @@ let private duet (program: Instruction array) =
                     Position = machine.Position + 1L
                 }
 
-            match program[int machine.Position] with
+            match instruction with
             | Sound operand -> run { next with Sent = next.Sent + 1L } (read operand :: outgoing)
             | Update(target, operation, operand) ->
-                update machine.Registers target operation operand
-                |> Result.bind (fun registers -> run { next with Registers = registers } outgoing)
+                match update machine.Registers target operation operand with
+                | Ok registers -> run { next with Registers = registers } outgoing
+                | Error error -> Error error
             | Receive(Register name) ->
                 match dequeue machine.Inbox with
                 | None -> Ok(machine, List.rev outgoing)
@@ -92,7 +117,7 @@ let private duet (program: Instruction array) =
                         }
                         outgoing
             | Jump(condition, offset) ->
-                let position = machine.Position + if read condition > 0L then read offset else 1L
+                let position = jumpTarget machine.Position read condition offset
                 run { machine with Position = position } outgoing
 
     let deliver messages machine =
@@ -103,14 +128,16 @@ let private duet (program: Instruction array) =
         }
 
     let rec exchange first second =
-        run first []
-        |> Result.bind (fun (first, messages) ->
-            run (deliver messages second) []
-            |> Result.bind (fun (second, messages) ->
+        match run first [] with
+        | Error error -> Error error
+        | Ok(first, messages) ->
+            match run (deliver messages second) [] with
+            | Error error -> Error error
+            | Ok(second, messages) ->
                 // Both copies ran to a block or termination; only a new message can restart the first.
                 match messages with
                 | [] -> Ok second.Sent
-                | _ -> exchange (deliver messages first) second))
+                | _ -> exchange (deliver messages first) second
 
     let machine id =
         {
