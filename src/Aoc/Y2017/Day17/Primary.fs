@@ -6,12 +6,14 @@ module Aoc.Y2017.Day17.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day17.Input
 
+let private advance steps position value = (position + steps % value) % value + 1
+
 let private afterZero steps =
     let mutable position = 0
     let mutable successor = 0
 
     for value in 1..50_000_000 do
-        position <- (position + steps % value) % value + 1
+        position <- advance steps position value
         // Insertion never precedes index zero, so only index one replaces its successor.
         if position = 1 then
             successor <- value
@@ -27,10 +29,10 @@ let solve: Solver =
                 [ 1..2017 ]
                 |> List.fold
                     (fun (position, buffer) value ->
-                        let next = (position + steps % value) % value + 1
+                        let next = advance steps position value
                         next, buffer |> List.insertAt next value)
                     (0, [ 0 ])
 
-            match buffer |> List.tryItem ((position + 1) % 2018) with
+            match buffer |> List.tryItem ((position + 1) % List.length buffer) with
             | Some value -> Ok(Answers.both (string value) (afterZero steps |> string))
             | None -> Error "missing successor")
