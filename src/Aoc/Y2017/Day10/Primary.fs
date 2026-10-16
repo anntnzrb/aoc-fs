@@ -5,6 +5,7 @@ module Aoc.Y2017.Day10.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day10.Input
+open FsToolkit.ErrorHandling
 
 let private product lengths =
     match lengths |> Aoc.KnotHash.sparse 1 |> Array.truncate 2 with
@@ -16,9 +17,8 @@ let private hash text =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun puzzle ->
-            puzzle.Lengths
-            |> product
-            |> Result.map (fun part1 -> Answers.both (string part1) (hash puzzle.Text)))
+        result {
+            let! puzzle = Input.parse input
+            let! part1 = product puzzle.Lengths
+            return Answers.both (string part1) (hash puzzle.Text)
+        }
