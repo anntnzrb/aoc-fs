@@ -54,12 +54,13 @@ let private collisionTimes first second =
             if discriminant < 0I then
                 Some Set.empty
             else
-                let mutable root = discriminant
-                let mutable next = (root + 1I) / 2I
+                let rec squareRoot root next =
+                    if next < root then
+                        squareRoot next ((next + discriminant / next) / 2I)
+                    else
+                        root
 
-                while next < root do
-                    root <- next
-                    next <- (root + discriminant / root) / 2I
+                let root = squareRoot discriminant ((discriminant + 1I) / 2I)
 
                 if root * root = discriminant then
                     integralRoots (2I * quadratic) [ -b - root; -b + root ]
