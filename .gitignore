@@ -1,0 +1,12 @@
+bin/
+obj/
+inputs/
+.direnv/
+result
+.env
+.env.*
+!.env.example
+puzzles/
+fixtures/
+.cache/
+TestResults/

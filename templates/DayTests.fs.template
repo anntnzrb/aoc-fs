@@ -1,0 +1,6 @@
+module Aoc.Tests.Y{{YEAR}}.Day{{DAY}}Tests
+
+open Expecto
+
+[<Tests>]
+let tests = testList "Y{{YEAR}}.Day{{DAY}}" []

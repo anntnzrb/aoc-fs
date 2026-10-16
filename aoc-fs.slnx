@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/app/">
+    <Project Path="app/Aoc.Cli/Aoc.Cli.fsproj" />
+    <Project Path="app/Aoc.Ops/Aoc.Ops.fsproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Aoc/Aoc.fsproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Aoc.Tests/Aoc.Tests.fsproj" />
+  </Folder>
+</Solution>

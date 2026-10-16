@@ -1,0 +1,9 @@
+// approach: TODO
+// cost: TODO
+// trade: TODO
+module Aoc.Y{{YEAR}}.Day{{DAY}}.Primary
+
+open Aoc.Solution
+open Aoc.Y{{YEAR}}.Day{{DAY}}.Input
+
+let solve: Solver = fun input -> input |> Input.parse |> Result.map (fun _ -> Answers.both "0" "0")
