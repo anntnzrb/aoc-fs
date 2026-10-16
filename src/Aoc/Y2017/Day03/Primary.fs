@@ -5,6 +5,7 @@ module Aoc.Y2017.Day03.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day03.Input
+open FsToolkit.ErrorHandling
 
 let private positions () =
     Seq.initInfinite (fun leg ->
@@ -40,11 +41,13 @@ let private firstLarger number =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun (Square number) ->
+        result {
+            let! (Square number) = Input.parse input
             let x, y = positions () |> Seq.item (number - 1)
 
-            match firstLarger number with
-            | Some value -> Ok(Answers.both (abs x + abs y |> string) (string value))
-            | None -> Error "spiral ended before a larger value was written")
+            let! value =
+                firstLarger number
+                |> Result.requireSome "spiral ended before a larger value was written"
+
+            return Answers.both (abs x + abs y |> string) (string value)
+        }
