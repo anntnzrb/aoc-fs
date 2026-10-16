@@ -6,20 +6,24 @@ module Aoc.Y2017.Day20.Primary
 open Aoc.Solution
 open Aoc.Y2017.Day20.Input
 
-let private distancePolynomial particle =
+let private axes particle =
     let (Vector(px, py, pz)) = particle.Position
     let (Vector(vx, vy, vz)) = particle.Velocity
     let (Vector(ax, ay, az)) = particle.Acceleration
 
-    // Twice the position is a*t² + (2*v+a)*t + 2*p; its leading nonzero term fixes its eventual sign.
     [ px, vx, ax; py, vy, ay; pz, vz, az ]
+
+let private distancePolynomial particle =
+    // Twice the position is a*t² + (2*v+a)*t + 2*p; its leading nonzero term fixes its eventual sign.
+    axes particle
     |> List.fold
         (fun (quadratic, linear, constant) (p, v, a) ->
             let direction =
                 sign (
-                    if a <> 0L then a
-                    elif v <> 0L then v
-                    else p
+                    match a, v, p with
+                    | 0L, 0L, p -> p
+                    | 0L, v, _ -> v
+                    | a, _, _ -> a
                 )
                 |> int64
 
@@ -62,17 +66,7 @@ let private collisionTimes first second =
                 else
                     Some Set.empty
 
-    let (Vector(px, py, pz)), (Vector(qx, qy, qz)) = first.Position, second.Position
-    let (Vector(vx, vy, vz)), (Vector(wx, wy, wz)) = first.Velocity, second.Velocity
-
-    let (Vector(ax, ay, az)), (Vector(bx, by, bz)) =
-        first.Acceleration, second.Acceleration
-
-    [
-        px - qx, vx - wx, ax - bx
-        py - qy, vy - wy, ay - by
-        pz - qz, vz - wz, az - bz
-    ]
+    List.map2 (fun (p, v, a) (q, w, b) -> p - q, v - w, a - b) (axes first) (axes second)
     |> List.fold
         (fun times (p, v, a) ->
             match times with
