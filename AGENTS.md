@@ -378,15 +378,28 @@ docs/journal/<YEAR>.md        learning log
   listing-aware sources (`dotnet package search ID --exact-match`,
   `dotnet list package --outdated`), never the NuGet flat-container index.
   Never upgrade the SDK, `LangVersion` or `FSharp.Core` to make code compile.
-- `.config/dotnet-tools.json` pins local tools: Fantomas and the
-  `fsharp-analyzers` runner. Restore with `dotnet tool restore`.
+- `.config/dotnet-tools.json` pins local tools: Fantomas, the
+  `fsharp-analyzers` runner and `dotnet-fsharplint`. Restore with `dotnet tool restore`.
 - `Directory.Build.props` owns the language settings: `net10.0`, `Nullable`
   enabled, `TreatWarningsAsErrors` true. Suppressions go there as `NoWarn`
   entries, each with an XML comment giving its reason; `#nowarn` in source is
   banned.
-- The gate runs, all as errors: Release build of the solution, `dotnet test`,
-  Fantomas format drift (`fantomas --check`; `.fantomasignore` skips `.cache/`), the
-  F# analyzer stage (`just analyze`) and the doc check (`just doc`). Checked arithmetic (`CheckForOverflowUnderflow`) is
+- The gate (`just check`) runs, all as errors: the Release build; then, in
+  parallel, the F# analyzer stage (`just analyze`), FSharpLint (`just lint`),
+  the doc check and Fantomas format drift (`fantomas --check`;
+  `.fantomasignore` skips `.cache/`); then `dotnet test`.
+- Strictness is maximal by default, narrowed only with written reasons:
+  `Directory.Build.props` sets `WarningLevel` 5 and enables every documented
+  opt-in warning of the pinned compiler (21, 22, 52, 1178, 1182, 3180, 3186,
+  3366, 3388, 3389, 3390, 3395, 3517, 3559, 3560, 3570, 3579, 3582, 3878); the
+  only suppression is FS3186 in the test project (FsCheck's own metadata).
+  `just analyze` runs every Aoc.Discipline and Ionide.Analyzers rule over
+  authored sources (`obj/` excluded). `fsharplint.json` enables every
+  FSharpLint rule except the ones listed there, each with its reason (mostly
+  layout rules that contradict Fantomas, which owns layout). F# 10 already
+  enforces strict indentation. A new rule, tool or version starts fully
+  enabled; disable a rule only for a conflict with this file or an
+  unavoidable false positive, narrowly, with the reason beside it. Checked arithmetic (`CheckForOverflowUnderflow`) is
   on for Debug builds and the test run, the closest equivalent of an integer
   sanitizer; Release builds keep unchecked arithmetic.
 - .NET code is memory-safe and the code rules require totality, so there is
@@ -554,6 +567,7 @@ just run YEAR DAY [VARIANT]   # Release aoc on the cached input
 just test                     # dotnet test
 just fmt                      # fantomas .
 just analyze                  # fsharp-analyzers over every project
+just lint                     # FSharpLint over the solution
 just doc                      # header tags and #nowarn (aoc-ops doc)
 just bench YEAR DAY           # measure every variant (aoc-ops bench)
 just record YEAR DAY          # append canonical rows to bench/<YEAR>.csv
