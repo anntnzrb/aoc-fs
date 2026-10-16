@@ -1,6 +1,6 @@
-// approach: walk the spiral's alternating horizontal and vertical legs, increasing their length after every two turns
-// cost: O(n) time, O(1) live memory, one input pass
-// trade: a lazy coordinate stream follows the allocation rule directly without storing the grid
+// approach: walk growing spiral legs; find the target's distance and sum previously written neighbours until their value exceeds the target
+// cost: O(n + k log k) time, O(k) live memory for k stress-test cells, one input pass
+// trade: a lazy coordinate stream serves both rules; an immutable map stores only written cells
 module Aoc.Y2017.Day03.Primary
 
 open Aoc.Solution
@@ -19,12 +19,33 @@ let private positions () =
     |> Seq.concat
     |> Seq.scan (fun (x, y) (dx, dy) -> x + dx, y + dy) (0, 0)
 
+let private firstLarger number =
+    positions ()
+    |> Seq.skip 1
+    |> Seq.scan
+        (fun (memory, _) (x, y) ->
+            let value =
+                [
+                    for dx in -1 .. 1 do
+                        for dy in -1 .. 1 do
+                            if dx <> 0 || dy <> 0 then
+                                yield memory |> Map.tryFind (x + dx, y + dy) |> Option.defaultValue 0L
+                ]
+                |> List.sum
+
+            Map.add (x, y) value memory, value)
+        (Map.ofList [ (0, 0), 1L ], 1L)
+    |> Seq.map snd
+    |> Seq.tryFind (fun value -> value > int64 number)
+
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun (Square number) ->
+        |> Result.bind (fun (Square number) ->
             let x, y =
                 positions () |> Seq.take number |> Seq.fold (fun _ position -> position) (0, 0)
 
-            Answers.both (abs x + abs y |> string) "0")
+            match firstLarger number with
+            | Some value -> Ok(Answers.both (abs x + abs y |> string) (string value))
+            | None -> Error "spiral ended before a larger value was written")
