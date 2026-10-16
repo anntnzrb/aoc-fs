@@ -1,6 +1,5 @@
 // approach: interpret part 1; replace a verified nested factor-search loop with trial division for part 2
-// cost: O(n log(l+2)+t+(s+k) log(l+2)+k sqrt(b)) time: n instructions, l recognized loops, t/s literal steps, k accelerated loops bounded by b
-// cost: O(n+l) memory, one parse pass and six buffered passes
+// cost: O(n log(l+2)+t+(s+k) log(l+2)+k sqrt(b)) time, O(n+l) memory, one parse pass and six buffered passes; n instructions, l recognized loops, t/s literal steps, k accelerated loops bounded by b
 // trade: immutable eight-register snapshots keep execution literal except for a structurally checked loop; no input constants are embedded
 module Aoc.Y2017.Day23.Primary
 
