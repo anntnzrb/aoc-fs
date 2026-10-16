@@ -419,13 +419,16 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
   not escape. IO lives only in `app/` and the test harness.
 - Parse, don't validate: model the statement with DUs, records and
   single-case DUs so illegal states are unrepresentable; parse at the edge,
-  keep the core total. String splitting and active patterns cover line
-  formats; FParsec (pinned since 2017 day 09) handles nested grammars.
+  keep the core total. String splitting and active patterns cover simple
+  token lines; FParsec (pinned in Directory.Packages.props) handles nested
+  grammars and multi-part line grammars; run FParsec parsers through
+  `Aoc.Parse.run`, and all-or-nothing traversals of independent items through
+  `Aoc.Parse.traverse`.
 - Total functions only: no `List.head`, `Seq.head`, `List.item`, `Array.get`
-  on unchecked indexes, `Option.get`, `.Value`, `failwith`, `raise` or
-  `invalidArg` in solutions; use `tryHead`, `tryFind`, `tryItem`, `Result`
-  and `Option`. Exceptions only in `app/`. Incomplete pattern matches are
-  compiler errors under the gate (warning 25).
+  on unchecked indexes, `Option.get`, `.Value` on options or nullables,
+  `failwith`, `raise` or `invalidArg` in solutions; use `tryHead`, `tryFind`,
+  `tryItem`, `Result` and `Option`. Exceptions only in `app/`. Incomplete
+  pattern matches are compiler errors under the gate (warning 25).
 - Combinators over explicit recursion: `fold`, `scan`, `unfold`, `iter`
   families, `Map`, `Set`. Recurse by hand only where no combinator fits, and
   make it tail recursive.
@@ -480,7 +483,7 @@ Write idiomatic, elegant F# first; measure cost, do not chase it.
 - Aggregate several values in one traversal with a tuple fold.
 
       let stats xs = xs |> List.fold (fun (s, p) n -> s + n, p * n) (0, 1)
-- Parse all-or-nothing by folding into `Result`; stop at the first error.
+- Parse all-or-nothing with `Aoc.Parse.traverse` (it stops at the first error).
 - Name transitions with `Seq.unfold`, `List.scan`, `Seq.pairwise`; find a
   fixed point as the first equal adjacent pair, requiring convergence.
 
