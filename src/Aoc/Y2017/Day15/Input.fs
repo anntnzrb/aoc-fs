@@ -26,6 +26,4 @@ let parse (input: string) : Result<Generators, string> =
         .>> eof
         |>> fun (a, b) -> { A = a; B = b }
 
-    match run generators input with
-    | Success(generators, _, _) -> Result.Ok generators
-    | Failure(message, _, _) -> Result.Error message
+    Aoc.Parse.run generators input
