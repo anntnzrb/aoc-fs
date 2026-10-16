@@ -305,6 +305,8 @@ let private run root =
 
         Console.Out.Write text
         Submission.classify text
+    | Command.Bench(year, day) -> Benchmark.run root year day false
+    | Command.Record(year, day) -> Benchmark.run root year day true
     | Command.New(year, day) ->
         scaffold root year day None
         0

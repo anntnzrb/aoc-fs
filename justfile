@@ -19,6 +19,12 @@ submit year day part answer:
 new year day:
     dotnet run --project app/Aoc.Ops -- new {{year}} {{day}}
 
+bench year day:
+    dotnet run --project app/Aoc.Ops -- bench {{year}} {{day}}
+
+record year day:
+    dotnet run --project app/Aoc.Ops -- record {{year}} {{day}}
+
 fmt:
     dotnet tool run fantomas .
 

@@ -3,6 +3,7 @@ module Aoc.Tests.OpsTests
 open System.IO
 open Expecto
 open Aoc.Ops
+open Aoc.Ops.Bench
 
 let private template name =
     File.ReadAllText(Path.Combine(Repository.root, "templates", name + ".fs.template"))
@@ -12,6 +13,149 @@ let tests =
     testList
         "Ops"
         [
+            testList
+                "Bench"
+                [
+                    testCase "commands validate dates" (fun () ->
+                        Expect.equal
+                            (Command.parse [| "bench"; "2017"; "1" |])
+                            (Ok(Command.Bench(2017, 1)))
+                            "Bench selection"
+
+                        Expect.equal
+                            (Command.parse [| "record"; "2017"; "25" |])
+                            (Ok(Command.Record(2017, 25)))
+                            "Record selection"
+
+                        Expect.isError (Command.parse [| "bench"; "2017"; "26" |]) "Invalid date")
+                    testCase "statistics retain median and range" (fun () ->
+                        Expect.equal
+                            (Bench.summarize [ 9M; 1M; 5M ])
+                            (Some
+                                {
+                                    Median = 5M
+                                    Minimum = 1M
+                                    Maximum = 9M
+                                })
+                            "Odd sample"
+
+                        Expect.equal
+                            (Bench.summarize [ 8M; 2M; 6M; 4M ])
+                            (Some
+                                {
+                                    Median = 5M
+                                    Minimum = 2M
+                                    Maximum = 8M
+                                })
+                            "Even sample"
+
+                        Expect.equal (Bench.summarize []) None "No fabricated zero")
+                    testCase "subtract paired baselines before summarizing" (fun () ->
+                        Expect.equal
+                            (Bench.work [ 110M, 100M; 140M, 80M; 125M, 120M ])
+                            (Some
+                                {
+                                    Median = 10M
+                                    Minimum = 5M
+                                    Maximum = 60M
+                                })
+                            "Pairing matters"
+
+                        Expect.equal
+                            (Bench.work [ 9M, 10M ])
+                            (Some
+                                {
+                                    Median = -1M
+                                    Minimum = -1M
+                                    Maximum = -1M
+                                })
+                            "Retain noise")
+                    testCase "agreement rejects mismatch and failed process without leaking" (fun () ->
+                        Expect.equal
+                            (Bench.agreement "alternate" "synthetic-oracle" (0, "synthetic-oracle"))
+                            (Ok())
+                            "Agreement"
+
+                        Expect.equal
+                            (Bench.agreement "alternate" "synthetic-oracle" (0, "synthetic-wrong"))
+                            (Error "alternate disagrees with primary; answers withheld")
+                            "Mismatch"
+
+                        Expect.equal
+                            (Bench.agreement "alternate" "synthetic-oracle" (7, "synthetic-oracle"))
+                            (Error "alternate process failed (exit 7); diagnostics withheld")
+                            "Failure")
+                    testCase "record refuses dirty and non-main canned git results" (fun () ->
+                        Expect.equal (Bench.canonical (0, "main\n") (0, "")) (Ok()) "Clean main"
+
+                        Expect.isError
+                            (Bench.canonical (0, "main") (0, " M app/Aoc.Ops/Program.fs"))
+                            "Tracked modification"
+
+                        Expect.isError (Bench.canonical (0, "main") (0, "A  bench/2017.csv")) "Staged modification"
+                        Expect.isError (Bench.canonical (0, "work/12345678") (0, "")) "Candidate"
+                        Expect.isError (Bench.canonical (0, "") (0, "")) "Detached"
+                        Expect.isError (Bench.canonical (1, "main") (0, "")) "Git failure")
+                    testCase "CSV quotes text and keeps absent metrics empty" (fun () ->
+                        let metadata: Bench.Metadata =
+                            {
+                                Date = "date"
+                                Commit = "revision"
+                                Host = "host"
+                                Os = "os,arch"
+                                Cpu = "a\"b"
+                                Compiler = "SDK"
+                                Standard = "F# 10"
+                            }
+
+                        let summary =
+                            {
+                                Median = 2.5M
+                                Minimum = 1M
+                                Maximum = 4M
+                            }
+
+                        let measurement: Bench.Measurement =
+                            {
+                                Solution = "primary"
+                                Runs = 10
+                                Work = None
+                                Instructions = None
+                                Wall = summary
+                                Cpu = summary
+                                Rss = 512M
+                            }
+
+                        Expect.equal
+                            (Bench.csvRow metadata 2017 1 measurement)
+                            "\"date\",\"revision\",\"host\",\"os,arch\",\"a\"\"b\",\"SDK\",\"F# 10\",2017,1,\"primary\",10,,,,,1,2.5,2.5,512"
+                            "Shared schema"
+
+                        Expect.equal (Bench.quote "line\none") "\"line\none\"" "Embedded newline"
+                        Expect.equal (Bench.number None) "" "Unavailable")
+                    testCase "perf parses only usable instruction counts" (fun () ->
+                        Expect.equal
+                            (Bench.instructions "1200,,instructions:u,1,100.00,,\n0.1,,seconds time elapsed\n")
+                            (Some 1200M)
+                            "Counter"
+
+                        Expect.equal
+                            (Bench.instructions "<not supported>,,instructions:u,0,100.00,,")
+                            None
+                            "Unsupported"
+
+                        Expect.equal (Bench.instructions "unrelated") None "No counter"
+
+                        Expect.equal
+                            (Bench.instructions
+                                "1060444,,cpu_atom/instructions/u,765213,100.00,,\n<not counted>,,cpu_core/instructions/u,0,0.00,,\n")
+                            (Some 1060444M)
+                            "Hybrid CPU reports the selected PMU and an inactive PMU")
+                    testCase "GNU time resources use microseconds and KiB" (fun () ->
+                        Expect.equal (Bench.resources "0.01,0.02,1234\n") (Ok(30000M, 1234M)) "Units"
+                        Expect.isError (Bench.resources "bad,0.02,1234") "Malformed"
+                        Expect.isError (Bench.resources "-1,0,1") "Negative")
+                ]
             testCase "User-Agent is a valid header value" (fun () ->
                 use message = new System.Net.Http.HttpRequestMessage()
                 Expect.isTrue (message.Headers.UserAgent.TryParseAdd Program.userAgent) "Header accepts the value")

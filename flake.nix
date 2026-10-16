@@ -14,7 +14,8 @@
         in
         {
           default = pkgs.mkShell {
-            packages = [ pkgs.dotnet-sdk_10 pkgs.just ];
+            packages = [ pkgs.dotnet-sdk_10 pkgs.just pkgs.time ]
+              ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.perf pkgs.util-linux ];
             DOTNET_CLI_TELEMETRY_OPTOUT = "1";
           };
         });

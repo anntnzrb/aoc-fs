@@ -13,6 +13,10 @@ type Operation =
     | Puzzle of year: int * day: int
     /// Submit a validated answer.
     | Submit of year: int * day: int * part: int * answer: string
+    /// Measure optimized variants on cached input.
+    | Bench of year: int * day: int
+    /// Append canonical measurements on clean main.
+    | Record of year: int * day: int
     /// Scaffold a primary solution.
     | New of year: int * day: int
     /// Scaffold a named exploration beside an existing primary.
@@ -39,6 +43,8 @@ let parse (args: string array) : Result<Operation, string> =
     match args with
     | [| "fetch"; year; day |] -> date year day (fun y d -> Fetch(y, d, false))
     | [| "fetch"; year; day; "--force" |] -> date year day (fun y d -> Fetch(y, d, true))
+    | [| "bench"; year; day |] -> date year day (fun y d -> Bench(y, d))
+    | [| "record"; year; day |] -> date year day (fun y d -> Record(y, d))
     | [| "puzzle"; year; day |] -> date year day (fun y d -> Puzzle(y, d))
     | [| "submit"; year; day; part; answer |] ->
         Submission.validate part answer
@@ -49,4 +55,4 @@ let parse (args: string array) : Result<Operation, string> =
     | [| "new"; year; day |] -> date year day (fun y d -> New(y, d))
     | _ ->
         Error
-            "Usage: aoc-ops fetch YEAR DAY [--force] | puzzle YEAR DAY | submit YEAR DAY PART ANSWER | new YEAR DAY [EXPLORATION]"
+            "Usage: aoc-ops fetch YEAR DAY [--force] | puzzle YEAR DAY | submit YEAR DAY PART ANSWER | new YEAR DAY [EXPLORATION] | bench YEAR DAY | record YEAR DAY"
