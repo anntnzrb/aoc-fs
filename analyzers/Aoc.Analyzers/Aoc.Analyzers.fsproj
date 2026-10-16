@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <Compile Include="Rules.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Ionide.Analyzers">
+      <HintPath>$(PkgIonide_Analyzers)/analyzers/dotnet/fs/Ionide.Analyzers.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FSharp.Analyzers.SDK" />
+    <PackageReference Include="Ionide.Analyzers" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

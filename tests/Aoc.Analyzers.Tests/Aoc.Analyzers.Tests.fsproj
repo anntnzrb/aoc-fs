@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <EnableExpectoTestingPlatformIntegration>true</EnableExpectoTestingPlatformIntegration>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="RulesTests.fs" />
+    <PackageReference Include="FSharp.Core" />
+    <PackageReference Include="FSharp.Analyzers.SDK.Testing" />
+    <PackageReference Include="FParsec" />
+    <PackageReference Include="Expecto" />
+    <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    <ProjectReference Include="../../analyzers/Aoc.Analyzers/Aoc.Analyzers.fsproj" />
+  </ItemGroup>
+</Project>
