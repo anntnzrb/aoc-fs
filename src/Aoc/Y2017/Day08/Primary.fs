@@ -44,10 +44,9 @@ let solve: Solver =
             let registers, highest = instructions |> List.fold execute (Map.empty, 0L)
 
             let largest =
-                registers
-                |> Map.fold
-                    (fun largest _ value -> Some(largest |> Option.map (max value) |> Option.defaultValue value))
-                    None
-                |> Option.defaultValue 0L
+                if Map.isEmpty registers then
+                    0L
+                else
+                    registers |> Map.values |> Seq.max
 
             Answers.both (string largest) (string highest))
