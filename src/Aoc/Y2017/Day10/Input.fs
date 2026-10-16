@@ -4,9 +4,17 @@ module Aoc.Y2017.Day10.Input
 /// A span length between zero and the circle's size, inclusive.
 type Length = Length of int
 
-/// Parses comma-separated decimal lengths for a circle of 256 marks.
-let parse (input: string) : Result<Length list, string> =
-    input.TrimEnd('\r', '\n').Split(',')
+/// ASCII hash text and its optional interpretation as comma-separated lengths.
+type Puzzle =
+    {
+        /// Trimmed original text, including commas and interior spaces.
+        Text: string
+        /// None when the text has no valid part-one length interpretation.
+        Lengths: Length list option
+    }
+
+let private lengths (text: string) =
+    text.Split(',')
     |> Array.fold
         (fun result token ->
             result
@@ -17,3 +25,20 @@ let parse (input: string) : Result<Length list, string> =
                 | _ -> Error $"invalid length: %A{token}"))
         (Ok [])
     |> Result.map List.rev
+
+/// Parses ASCII text after removing surrounding whitespace; empty text is valid.
+let parse (input: string) : Result<Puzzle, string> =
+    let text = input.Trim()
+
+    match text |> Seq.forall System.Char.IsAscii with
+    | false -> Error "hash input must contain only ASCII characters"
+    | true ->
+        Ok
+            {
+                Text = text
+                Lengths =
+                    if text = "" then
+                        Some []
+                    else
+                        text |> lengths |> Result.toOption
+            }
