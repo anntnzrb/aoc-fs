@@ -1,14 +1,58 @@
 module Aoc.Tests.Y2017.Day20Tests
 
 open Expecto
+open FsCheck.FSharp
 open Aoc.Solution
 open Aoc.Y2017.Day20
+
+let private particles =
+    let vector =
+        Gen.choose (-10, 10)
+        |> Gen.map int64
+        |> fun coordinate -> Gen.zip3 coordinate coordinate coordinate
+        |> Gen.map Input.Vector
+
+    gen {
+        let! count = Gen.choose (1, 6)
+
+        return!
+            Gen.zip3 vector vector vector
+            |> Gen.map (fun (position, velocity, acceleration) ->
+                {
+                    Input.Position = position
+                    Input.Velocity = velocity
+                    Input.Acceleration = acceleration
+                })
+            |> Gen.listOfLength count
+    }
+
+let private render (particles: Input.Particle list) =
+    let vector (Input.Vector(x, y, z)) = $"<{x},{y},{z}>"
+
+    particles
+    |> List.map (fun particle ->
+        $"p={vector particle.Position}, v={vector particle.Velocity}, a={vector particle.Acceleration}")
+    |> String.concat "\n"
+
+let private config =
+    { FsCheckConfig.defaultConfig with
+        maxTest = 50
+        endSize = 6
+    }
 
 [<Tests>]
 let tests =
     testList
         "Y2017.Day20"
         [
+            testPropertyWithConfig
+                config
+                "parser preserves particle order and coordinates"
+                (Prop.forAll (Arb.fromGen particles) (fun expected -> Input.parse (render expected) = Ok expected))
+            testPropertyWithConfig
+                config
+                "small particle swarms solve without throwing"
+                (Prop.forAll (Arb.fromGen particles) (render >> Primary.solve >> Result.isOk))
             testCase "eventual sign follows the first nonzero coefficient" (fun () ->
                 // Stationary distances are 5 and 10. Moving distances eventually grow
                 // at rates 1 and 2; 5-t = 2t has no integer meeting time.
