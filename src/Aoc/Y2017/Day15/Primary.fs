@@ -1,32 +1,30 @@
 // approach: independently advance each generator to its next acceptable value, then compare low 16 bits
 // cost: O(g) time for g total generated values across both parts, O(1) memory, one input pass
-// trade: local mutable state keeps the recurrence direct without storing generated values
+// trade: capture-free tail recursion keeps constant-space loops without per-value closures
 module Aoc.Y2017.Day15.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day15.Input
 
-let private matches pairs multipleA multipleB (Seed startA) (Seed startB) =
-    let next factor multiple previous =
-        let mutable value = previous * factor % modulus
+let rec private generate factor multiple previous =
+    let value = previous * factor % modulus
 
-        while value % multiple <> 0L do
-            value <- value * factor % modulus
-
+    if value % multiple = 0L then
         value
+    else
+        generate factor multiple value
 
-    let mutable a = startA
-    let mutable b = startB
-    let mutable count = 0
+let rec private countMatches remaining multipleA multipleB a b count =
+    if remaining = 0 then
+        count
+    else
+        let nextA = generate 16807L multipleA a
+        let nextB = generate 48271L multipleB b
+        let matched = if (nextA &&& 65535L) = (nextB &&& 65535L) then 1 else 0
+        countMatches (remaining - 1) multipleA multipleB nextA nextB (count + matched)
 
-    for _ in 1..pairs do
-        a <- next 16807L multipleA a
-        b <- next 48271L multipleB b
-
-        if (a &&& 65535L) = (b &&& 65535L) then
-            count <- count + 1
-
-    count
+let private matches pairs multipleA multipleB (Seed startA) (Seed startB) =
+    countMatches pairs multipleA multipleB startA startB 0
 
 let solve: Solver =
     fun input ->
