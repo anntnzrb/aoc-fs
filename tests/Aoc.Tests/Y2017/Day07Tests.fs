@@ -44,3 +44,19 @@ let tests =
                     (Input.parse "root (1)\nroot (2)\n")
                     (Error "duplicate program name")
                     "names identify unique programs")
+            testCase "corrects either child using the inherited tower total" (fun () ->
+                // a and b total 10, so c must total 10; with c's own weight 0, both children must weigh 5.
+                for children in [ "d, e"; "e, d" ] do
+                    let input = $"r (0) -> a, b, c\na (10)\nb (10)\nc (0) -> {children}\nd (5)\ne (7)\n"
+
+                    Expect.equal
+                        (Primary.solve input)
+                        (Ok(Answers.both "r" "5"))
+                        "child order cannot change correction")
+            testCase "rejects ambiguous sibling weights" (fun () ->
+                // Without a parent target, either leaf could be changed to match the other.
+                Expect.equal
+                    (Primary.solve "r (0) -> a, b\na (5)\nb (7)\n")
+                    (Error "ambiguous weight correction")
+                    "two unequal children alone do not identify the wrong weight")
+        ]

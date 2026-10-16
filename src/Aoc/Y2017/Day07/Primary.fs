@@ -1,5 +1,5 @@
 // approach: find the root by name subtraction, total sub-towers bottom-up, then follow the unequal child to the wrong own weight
-// cost: O(n log n) time and O(n) memory; parsing, root collection, tower ordering, totals, and one root-to-error walk
+// cost: O(n log n) time and O(n) memory; parsing/name validation, root collection, tower ordering, totals, and one root-to-error walk
 // trade: immutable maps and an explicit traversal stack keep the tree walk tail recursive and independent of input order
 module Aoc.Y2017.Day07.Primary
 
@@ -21,14 +21,10 @@ let private bottomUp root programs =
 
 let private childTotals totals program =
     program.Children
-    |> List.fold
-        (fun acc name ->
-            acc
-            |> Result.bind (fun children ->
-                match Map.tryFind name totals with
-                | Some total -> Ok((name, total) :: children)
-                | None -> Error "missing child total"))
-        (Ok [])
+    |> Aoc.Parse.traverse (fun name ->
+        match Map.tryFind name totals with
+        | Some total -> Ok(name, total)
+        | None -> Error "missing child total")
 
 let private towerTotals ordered =
     ordered
@@ -46,8 +42,9 @@ let private correction root programs totals =
     let rec descend name expected =
         match Map.tryFind name programs, Map.tryFind name totals with
         | Some program, Some total ->
-            childTotals totals program
-            |> Result.bind (fun children ->
+            match childTotals totals program with
+            | Error error -> Error error
+            | Ok children ->
                 match children |> List.groupBy snd |> List.sortByDescending (snd >> List.length) with
                 | []
                 | [ _ ] ->
@@ -67,7 +64,7 @@ let private correction root programs totals =
                         | 0, false, true -> descend left (Some required)
                         | _ -> Error "ambiguous weight correction"
                     | _ -> Error "ambiguous weight correction"
-                | _ -> Error "more than one wrong weight")
+                | _ -> Error "more than one wrong weight"
         | _ -> Error "missing tower program"
 
     descend root None
