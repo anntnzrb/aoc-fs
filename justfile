@@ -28,13 +28,21 @@ record year day:
 fmt:
     dotnet tool run fantomas .
 
+# The gate: build once, run the read-only checks in parallel, then test.
 check:
     dotnet build -c Release
-    just analyze
-    just lint
-    just doc
+    just static
     dotnet test
+
+[parallel]
+static: analyze lint doc-built format
+
+format:
     dotnet tool run fantomas --check .
+
+# The doc check against the Release build `check` just made.
+doc-built:
+    dotnet run --no-build --project app/Aoc.Ops -c Release -- doc
 
 doc:
     dotnet run --project app/Aoc.Ops -c Release -- doc
