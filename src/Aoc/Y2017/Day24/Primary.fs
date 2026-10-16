@@ -23,12 +23,12 @@ let solve: Solver =
                             (fun pending (id, a, b) ->
                                 if not (Set.contains id used) && (a = port || b = port) then
                                     let next = if a = port then b else a
-                                    (next, strength + a + b, Set.add id used) :: pending
+                                    (next, strength + int64 a + int64 b, Set.add id used) :: pending
                                 else
                                     pending)
                             rest
 
                     search (max strongest strength) (max longest (Set.count used, strength)) frontier
 
-            let strongest, longest = search 0 (0, 0) [ 0, 0, Set.empty ]
+            let strongest, longest = search 0L (0, 0L) [ 0, 0L, Set.empty ]
             Answers.both (string strongest) (string longest))
