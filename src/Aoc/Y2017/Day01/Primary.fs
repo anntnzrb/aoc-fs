@@ -1,5 +1,5 @@
 // approach: pair each digit with the digit a fixed step ahead on the circle (1 for part 1, half the length for part 2) and sum the digits that equal their partner
-// cost: O(n) time, O(n) memory, one pass over the parsed digits per part
+// cost: O(n) time, O(n) memory; parse and reverse digits, convert to array, then map and sum (two array passes) per part
 // trade: an indexed array makes the circular wrap a modulo instead of an appended copy
 module Aoc.Y2017.Day01.Primary
 
@@ -10,8 +10,8 @@ let private matchSum step (digits: int array) =
     let n = digits.Length
 
     digits
-    |> Array.mapi (fun i d -> d, digits[(i + step) % n])
-    |> Array.sumBy (fun (d, partner) -> if d = partner then d else 0)
+    |> Array.mapi (fun i d -> if d = digits[(i + step) % n] then d else 0)
+    |> Array.sum
 
 let solve: Solver =
     fun input ->
