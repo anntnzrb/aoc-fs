@@ -1,5 +1,5 @@
-// approach: add each hex move in north/northeast coordinates and compute the shortest displacement
-// cost: O(n) time, O(n) memory, one parsing pass and one traversal of the parsed path
+// approach: fold hex moves in north/northeast coordinates, keeping the final position and greatest distance
+// cost: O(n) time, O(n) memory; split, parse, reverse, then one path fold for both parts
 // trade: two coordinates replace a grid search; their implicit third coordinate gives the distance
 module Aoc.Y2017.Day11.Primary
 
@@ -24,5 +24,12 @@ let solve: Solver =
         input
         |> Input.parse
         |> Result.map (fun path ->
-            let final = path |> List.fold move (0, 0)
-            Answers.both (distance final |> string) "0")
+            let final, furthest =
+                path
+                |> List.fold
+                    (fun (position, furthest) step ->
+                        let next = move position step
+                        next, max furthest (distance next))
+                    ((0, 0), 0)
+
+            Answers.both (distance final |> string) (string furthest))
