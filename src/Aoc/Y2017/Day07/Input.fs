@@ -18,8 +18,10 @@ let private parseLine (line: string) =
         | [ name; weight ] when validName name && children |> List.forall validName ->
             match weight.StartsWith('('), weight.EndsWith(')') with
             | true, true ->
-                match System.Int32.TryParse(weight.Trim('(', ')')) with
-                | true, value when value >= 0 ->
+                let digits = weight.Substring(1, weight.Length - 2)
+
+                match digits <> "" && digits |> Seq.forall System.Char.IsAsciiDigit, System.Int32.TryParse digits with
+                | true, (true, value) ->
                     Ok
                         {
                             Name = name
@@ -45,11 +47,11 @@ let parse (input: string) : Result<Program list, string> =
         |> Array.fold
             (fun acc line ->
                 acc
-                |> Result.bind (fun programs ->
+                |> Result.bind (fun (names, programs) ->
                     parseLine line
                     |> Result.bind (fun program ->
-                        match programs |> List.exists (fun previous -> previous.Name = program.Name) with
+                        match Set.contains program.Name names with
                         | true -> Error "duplicate program name"
-                        | false -> Ok(program :: programs))))
-            (Ok [])
-        |> Result.map List.rev
+                        | false -> Ok(Set.add program.Name names, program :: programs))))
+            (Ok(Set.empty, []))
+        |> Result.map (snd >> List.rev)
