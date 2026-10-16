@@ -2,6 +2,7 @@
 module Aoc.Y2017.Day07.Input
 
 open FParsec
+open FsToolkit.ErrorHandling
 
 /// A program's own weight and the programs directly supported by its disc.
 type Program =
@@ -42,12 +43,12 @@ let parse (input: string) : Result<Program list, string> =
     | text ->
         let text = text.Replace("\r\n", "\n")
 
-        (if text.Contains '\r' then
-             Result.Error "invalid line separator"
-         else
-             Aoc.Parse.run tower text)
-        |> Result.bind (fun programs ->
+        result {
+            do! Result.requireFalse "invalid line separator" (text.Contains '\r')
+            let! programs = Aoc.Parse.run tower text
+
             if programs |> List.map _.Name |> Set.ofList |> Set.count = programs.Length then
-                Result.Ok programs
+                return programs
             else
-                Result.Error "duplicate program name")
+                return! Result.Error "duplicate program name"
+        }

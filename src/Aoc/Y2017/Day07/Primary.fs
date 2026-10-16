@@ -5,6 +5,7 @@ module Aoc.Y2017.Day07.Primary
 
 open Aoc.Solution
 open Aoc.Y2017.Day07.Input
+open FsToolkit.ErrorHandling
 
 let private bottomUp root programs =
     let rec visit pending seen ordered =
@@ -22,20 +23,20 @@ let private bottomUp root programs =
 let private childTotals totals program =
     program.Children
     |> Aoc.Parse.traverse (fun name ->
-        match Map.tryFind name totals with
-        | Some total -> Ok(name, total)
-        | None -> Error "missing child total")
+        Map.tryFind name totals
+        |> Result.requireSome "missing child total"
+        |> Result.map (fun total -> name, total))
 
 let private towerTotals ordered =
     ordered
     |> List.fold
         (fun acc program ->
-            acc
-            |> Result.bind (fun totals ->
-                childTotals totals program
-                |> Result.map (fun children ->
-                    let total = program.Weight + (children |> List.sumBy snd)
-                    Map.add program.Name total totals)))
+            result {
+                let! totals = acc
+                let! children = childTotals totals program
+                let total = program.Weight + (children |> List.sumBy snd)
+                return Map.add program.Name total totals
+            })
         (Ok Map.empty)
 
 let private correction root programs totals =
@@ -71,19 +72,22 @@ let private correction root programs totals =
 
 let solve: Solver =
     fun input ->
-        input
-        |> Input.parse
-        |> Result.bind (fun descriptions ->
+        result {
+            let! descriptions = Input.parse input
+
             let programs =
                 descriptions |> List.map (fun program -> program.Name, program) |> Map.ofList
 
             let names = programs |> Map.keys |> Set.ofSeq
             let children = descriptions |> List.collect _.Children |> Set.ofList
 
-            match Set.difference names children |> Set.toList with
-            | [ root ] ->
-                bottomUp root programs
-                |> Result.bind towerTotals
-                |> Result.bind (correction root programs)
-                |> Result.map (fun weight -> Answers.both root (string weight))
-            | _ -> Error "expected exactly one bottom program")
+            let! root =
+                match Set.difference names children |> Set.toList with
+                | [ root ] -> Ok root
+                | _ -> Error "expected exactly one bottom program"
+
+            let! ordered = bottomUp root programs
+            let! totals = towerTotals ordered
+            let! weight = correction root programs totals
+            return Answers.both root (string weight)
+        }
