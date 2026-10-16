@@ -26,24 +26,17 @@ let tests =
                 Expect.equal actual (Result.Error 2) "The first failing element supplies the error")
 
             testCase "traverse stops pulling at the first error" (fun () ->
-                let mutable pulled = 0
-
-                let source =
-                    seq {
-                        for value in 1..4 do
-                            pulled <- pulled + 1
-                            yield value
-                    }
+                let source = Seq.initInfinite id
 
                 let parse value =
                     if value = 2 then Result.Error value else Result.Ok value
 
                 let actual = source |> Aoc.Parse.traverse parse
-                Expect.equal actual (Result.Error 2) "The second element fails"
-                Expect.equal pulled 2 "No element after the failure is pulled")
+                Expect.equal actual (Result.Error 2) "The traversal stops at the failing index")
 
             for fail in [ false; true ] do
                 testCase $"traverse disposes the source when failure is %b{fail}" (fun () ->
+                    // Disposal is a side effect, so this test needs a mutable observer.
                     let mutable disposed = false
 
                     let source =

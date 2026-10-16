@@ -7,14 +7,16 @@ open FParsec
 /// Stops enumerating at the first error without pulling another element and disposes the enumerator.
 let traverse f (source: seq<'a>) =
     use iterator = source.GetEnumerator()
-    let mutable result = Result.Ok []
 
-    while Result.isOk result && iterator.MoveNext() do
-        result <-
-            result
-            |> Result.bind (fun values -> f iterator.Current |> Result.map (fun value -> value :: values))
+    let rec loop acc =
+        if iterator.MoveNext() then
+            match f iterator.Current with
+            | Result.Ok value -> loop (value :: acc)
+            | Result.Error error -> Result.Error error
+        else
+            Result.Ok(List.rev acc)
 
-    result |> Result.map List.rev
+    loop []
 
 /// Runs a parser on a string, preserving FParsec's failure message unchanged.
 /// The parser is responsible for requiring eof when the whole string must be consumed.
