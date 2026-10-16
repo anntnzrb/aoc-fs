@@ -1,16 +1,26 @@
 /// Domain model and parser for this puzzle.
 module Aoc.Y2017.Day12.Input
 
-/// The input lines, in their original order.
-type Puzzle =
+open FParsec
+
+/// A program's non-negative identifier.
+type ProgramId = ProgramId of uint32
+
+/// A program and the programs directly connected to it by pipes.
+type Program =
     {
-        /// Lines from the puzzle input.
-        Lines: string list
+        Id: ProgramId
+        Connections: ProgramId list
     }
 
-/// Parses the input into the puzzle domain model.
-let parse (input: string) : Result<Puzzle, string> =
-    Ok
-        {
-            Lines = input.Replace("\r\n", "\n").TrimEnd('\n').Split('\n') |> Array.toList
-        }
+/// Parses non-empty pipe declarations, each with at least one connection.
+let parse (input: string) : Result<Program list, string> =
+    let id = puint32 |>> ProgramId
+
+    let program =
+        id .>> pstring " <-> " .>>. sepBy1 id (pstring ", ")
+        |>> fun (id, connections) -> { Id = id; Connections = connections }
+
+    match run (sepEndBy1 program newline .>> eof) input with
+    | Success(programs, _, _) -> Result.Ok programs
+    | Failure(message, _, _) -> Result.Error message
