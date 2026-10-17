@@ -34,7 +34,7 @@ let private towerTotals ordered =
             result {
                 let! totals = acc
                 let! children = childTotals totals program
-                let total = program.Weight + (children |> List.sumBy snd)
+                let total = int64 program.Weight + (children |> List.sumBy snd)
                 return Map.add program.Name total totals
             })
         (Ok Map.empty)
@@ -50,19 +50,19 @@ let private correction root programs totals =
                 | []
                 | [ _ ] ->
                     match expected with
-                    | Some target -> Ok(program.Weight + target - total)
+                    | Some target -> Ok(int64 program.Weight + target - total)
                     | None -> Error "tower is already balanced"
                 | [ (common, majority); (_, [ (outlier, _) ]) ] when majority.Length > 1 ->
                     descend outlier (Some common)
                 | [ _; _ ] ->
                     match expected, children with
                     | Some target, [ (left, leftTotal); (right, rightTotal) ] ->
-                        let childrenWeight = target - program.Weight
-                        let required = childrenWeight / 2
+                        let childrenWeight = target - int64 program.Weight
+                        let required = childrenWeight / 2L
 
-                        match childrenWeight % 2, leftTotal = required, rightTotal = required with
-                        | 0, true, false -> descend right (Some required)
-                        | 0, false, true -> descend left (Some required)
+                        match childrenWeight % 2L, leftTotal = required, rightTotal = required with
+                        | 0L, true, false -> descend right (Some required)
+                        | 0L, false, true -> descend left (Some required)
                         | _ -> Error "ambiguous weight correction"
                     | _ -> Error "ambiguous weight correction"
                 | _ -> Error "more than one wrong weight"

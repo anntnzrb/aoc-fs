@@ -43,6 +43,12 @@ let tests =
     testList
         "Y2017.Day07"
         [
+            testCase "subtree totals exceed Int32 without overflow" (fun () ->
+                // The root totals MaxValue + 5 + 5 + 7; the unique heavier leaf must change from 7 to 5.
+                Expect.equal
+                    (Primary.solve "root (2147483647) -> a, b, c\na (5)\nb (5)\nc (7)")
+                    (Ok(Answers.both "root" "5"))
+                    "own weights widen before summation")
             testPropertyWithConfig
                 { FsCheckConfig.defaultConfig with
                     maxTest = 40
