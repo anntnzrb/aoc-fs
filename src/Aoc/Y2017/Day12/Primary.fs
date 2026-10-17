@@ -1,5 +1,5 @@
 // approach: follow pipes from zero for its group size, then start a new group at each still-unvisited program
-// cost: O((V + E) log V) time, O(V + E) memory; one input parse, two declaration traversals and one visit per program and pipe
+// cost: O((V + E) log(V + 2)) time, O(V + E) memory; V programs and E connections; one parse, declaration validation/index passes, then one visit per program and pipe
 // trade: immutable maps and a visited set handle arbitrary identifiers and cycles without indexed mutable state
 module Aoc.Y2017.Day12.Primary
 

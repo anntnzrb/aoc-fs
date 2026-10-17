@@ -55,6 +55,28 @@ let tests =
         [
             testPropertyWithConfig
                 config
+                "declaration permutations preserve network answers"
+                (Prop.forAll
+                    (network
+                     |> Gen.bind (fun (text, _) ->
+                         text.Split '\n'
+                         |> Array.toList
+                         |> Gen.shuffle
+                         |> Gen.map (fun lines -> text, String.concat "\n" lines))
+                     |> Arb.fromGen)
+                    (fun (text, shuffled) ->
+                        match Primary.solve text, Primary.solve shuffled with
+                        | Ok expected, Ok actual -> actual = expected
+                        | _ -> false))
+            for text, error in
+                [
+                    "0 <-> 0\n0 <-> 0", "duplicate program id"
+                    "0 <-> 1", "connection to an undeclared program"
+                    "0 <-> 1\n1 <-> 1", "non-reciprocal connection"
+                ] do
+                testCase error (fun () -> Expect.equal (Input.parse text) (Error error) "invalid network")
+            testPropertyWithConfig
+                config
                 "generated undirected declarations preserve identifiers and connections"
                 (Prop.forAll (Arb.fromGen network) (fun (text, expected) -> Input.parse text = Ok expected))
             testPropertyWithConfig
@@ -69,5 +91,8 @@ let tests =
                 Expect.equal (Primary.solve "1 <-> 1\n") (Error "program 0 is not declared") "missing program zero")
             testCase "mentioning program zero does not declare it" (fun () ->
                 // Program 0 appears only as a connection, not as a declared program.
-                Expect.equal (Primary.solve "1 <-> 0\n") (Error "program 0 is not declared") "undeclared connection")
+                Expect.equal
+                    (Primary.solve "1 <-> 0\n")
+                    (Error "connection to an undeclared program")
+                    "undeclared connection")
         ]
