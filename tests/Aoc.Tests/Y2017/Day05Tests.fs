@@ -10,6 +10,14 @@ let tests =
         "Y2017.Day05"
         [
             testProperty
+                "parser preserves generated offsets in order"
+                (Prop.forAll
+                    (Gen.choose (System.Int32.MinValue, System.Int32.MaxValue)
+                     |> Gen.nonEmptyListOf
+                     |> Arb.fromGen)
+                    (fun offsets ->
+                        Input.parse (offsets |> List.map string |> String.concat "\n") = Ok(Input.Instructions offsets)))
+            testProperty
                 "mutable agrees on bounded offset grammar"
                 (Prop.forAll
                     (Gen.choose (-3, 6)
