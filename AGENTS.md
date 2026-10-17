@@ -234,9 +234,9 @@ registries), the `aoc` filter (`app/Aoc.Cli`), the fixture runner, and
 `new` for primaries and explorations, `bench` and `record`. Shared modules
 exist (`Aoc.KnotHash`, `Aoc.Parse`); `FsToolkit.ErrorHandling` and FsCheck are
 in use; the analyzer stage (`analyzers/Aoc.Analyzers`) and the doc check run
-in the gate. The publishing remote `origin` is configured. Commands and checks
-marked *planned* do not exist yet. Never read another language's AoC repository: it contains
-solutions.
+in the gate. The publishing remote `origin` is configured. The repository is
+licensed under the GNU AGPL v3.0 (see `LICENSE`). Never read another language's
+AoC repository: it contains solutions.
 
 ## Critical repository rules
 
@@ -246,9 +246,10 @@ solutions.
 - Stay anonymous: no account name, email, repository URL or other personal
   identifier in requests (`User-Agent` is the bare `aoc-fs`), tracked files or
   user-facing output.
-- The non-secret year setting is shell-exported `AOC_YEAR`. Resolve YEAR
-  from the request, then `AOC_YEAR`, never from `.env`. If neither gives a
-  year, stop and ask before any fetch or submit.
+- The non-secret year setting is shell-exported `AOC_YEAR`. Agents resolve YEAR
+  for briefs and operations from the request, then `AOC_YEAR`, never from `.env`.
+  Every CLI command and workflow operation still takes YEAR explicitly. If
+  neither gives a year, stop and ask before any fetch or submit.
 
 ## Project
 
@@ -267,6 +268,8 @@ Paket, no FAKE.
 aoc-fs.slnx                   every project below
 Directory.Build.props         shared compiler settings (the strictness standard)
 Directory.Packages.props      every package version (CPM)
+nuget.config                  package sources pinned to nuget.org
+LICENSE                       GNU Affero General Public License v3.0
 src/Aoc/                      library: every solution, all pure
   Solution.fs                 the solver interface
   Y<YEAR>/
@@ -279,10 +282,12 @@ src/Aoc/                      library: every solution, all pure
   <Concept>.fs                shared modules, extracted on demand (Grid.fs ...)
 app/Aoc.Cli/                  aoc YEAR DAY [EXPLORATION] < input
 app/Aoc.Ops/                  the workflow operations
+analyzers/Aoc.Analyzers/      repository discipline analyzer (AOC001-AOC007)
 tests/Aoc.Tests/              Expecto suite on Microsoft.Testing.Platform
   Fixtures.fs                 fixture runner
   <Concept>Tests.fs           shared-module tests
   Y<YEAR>/Day<DD>Tests.fs     FsCheck generator and properties
+tests/Aoc.Analyzers.Tests/    discipline analyzer tests
 templates/                    skeletons for `new`
 fixtures/<YEAR>/<DD>/         p1-*.in|out, p2-*.in|out (ignored)
 inputs/<YEAR>/day<DD>.txt     personal input (ignored)
@@ -371,21 +376,24 @@ docs/journal/<YEAR>.md        learning log
   Linux `perf` and `util-linux` (`taskset`) for `bench`. Its `formatter` output
   is nixfmt (`nix fmt`); `just fmt` formats `flake.nix` and the gate rejects
   its drift. `nix flake check --no-build --all-systems` evaluates both target
-  systems. `.envrc` (`use flake`) enters the devshell through direnv. `flake.lock` pins the SDK; `global.json`
-  pins the same SDK with `rollForward: latestFeature` and selects
-  Microsoft.Testing.Platform as the test runner. Use the locked devshell
-  (`nix develop`), not tools selected ad hoc. A tool enters the flake or the
-  tool manifest with its first use.
+  systems. `.envrc` (`use flake`) enters the devshell through direnv. `flake.lock`
+  pins the SDK; `global.json` pins the same SDK with `rollForward: latestFeature`
+  and selects Microsoft.Testing.Platform as the test runner. Use the locked
+  devshell (`nix develop`), not tools selected ad hoc. A tool enters the flake or
+  the tool manifest with its first use. `.gitattributes` enforces LF line endings
+  everywhere (`* text=auto eol=lf`).
 - `Directory.Packages.props` pins every package (CPM); projects reference
   packages without versions. `RestorePackagesWithLockFile` tracks every
   project's transitive closure in `packages.lock.json`, and the gate starts
   with `dotnet restore --locked-mode`, so a drifting dependency fails it;
   after a deliberate package change, regenerate the locks with `dotnet restore
-  --force-evaluate` and commit them. `FSharp.Core` is declared there and referenced
-  explicitly by every project. Resolve a new or upgraded version only through
-  listing-aware sources (`dotnet package search ID --exact-match`,
-  `dotnet list package --outdated`), never the NuGet flat-container index.
-  Never upgrade the SDK, `LangVersion` or `FSharp.Core` to make code compile.
+  --force-evaluate` and commit them. `nuget.config` clears ambient package
+  sources and pins restores exclusively to nuget.org. `FSharp.Core` is declared
+  there and referenced explicitly by every project. Resolve a new or upgraded
+  version only through listing-aware sources (`dotnet package search ID
+  --exact-match`, `dotnet list package --outdated`), never the NuGet
+  flat-container index. Never upgrade the SDK, `LangVersion` or `FSharp.Core` to
+  make code compile.
 - `.config/dotnet-tools.json` pins local tools: Fantomas, the
   `fsharp-analyzers` runner and `dotnet-fsharplint`. Restore with `dotnet tool restore`.
 - `Directory.Build.props` owns the language settings: `net10.0`, `Nullable`
@@ -417,18 +425,21 @@ docs/journal/<YEAR>.md        learning log
   go undetected. Name this gap in reports.
 - Shared modules carry `///` XML documentation on every public member;
   `GenerateDocumentationFile` makes malformed docs fail the build
-  (warning 3390). The compiler does not report missing docs; the doc check
-  does.
+  (warning 3390). The compiler does not report missing docs; analyzer AOC007
+  reports missing `///` docs (the doc check only checks header tags and
+  `#nowarn`).
 - The analyzer stage is `analyzers/Aoc.Analyzers` (FSharp.Analyzers.SDK) plus
   Ionide's option-safety analyzer, run by the `fsharp-analyzers` tool over every
   project with every diagnostic as an error. Its rules: AOC001 no `mutable`,
   AOC002 no assignment (except the FParsec forwarded-reference setter), AOC003
-  no mutable collections or in-place array writes, AOC004 no banned partial
-  functions, AOC005 no `<|` or `<<`, AOC006 no object model of our own (also in
-  `app/`), AOC007 a `///` doc comment on every public declaration of the
-  shared library modules (outside day directories). AOC001-AOC004 apply to
-  `src/Aoc/` except exploration files. Its tests
-  live in `tests/Aoc.Analyzers.Tests`.
+  no mutable collections, in-place array operations (`Array.sortInPlace*`,
+  `System.Array` mutators) or reference-cell mutation (`:=`, `incr`, `decr`),
+  AOC004 no banned partial functions, AOC005 no `<|` or `<<` (in any analyzed
+  file), AOC006 no object model of our own (also in `app/`), AOC007 a `///` doc
+  comment on every public declaration of the shared library modules (outside day
+  directories). AOC001-AOC004 apply to `src/Aoc/` except exploration files;
+  AOC005 applies to every analyzed file. Its tests live in
+  `tests/Aoc.Analyzers.Tests`.
 - The doc check (`Aoc.Ops doc`, `just doc`) runs in `just check`: every
   solution and exploration file's first three lines are `// approach:`,
   `// cost:` and `// trade:` with text, and no source contains `#nowarn`. It
@@ -586,10 +597,13 @@ Run them through `nix develop -c just ...`.
 
 ## Commit scopes
 
-`YYYY/DD` (a day's directory and tests), `lib` (shared modules, registries,
-`Aoc.Cli`), `ops` (`Aoc.Ops`), `build` (flake, justfile, `global.json`,
-`Directory.*.props`, `.fsproj`, tool manifest), `docs` (AGENTS.md, README,
-journal, benchmark CSVs and host snapshots), `repo` (`.gitignore`).
+`y<YEAR>d<DD>` (a day's directory and tests), `y<YEAR>` (changes spanning one
+year's days), `analyzers` (analyzer project and its tests), `lib` (shared
+modules such as `Parse` and `KnotHash`, registries, `Aoc.Cli`), `ops`
+(`Aoc.Ops`), `build` (flake, justfile, `global.json`, `Directory.*.props`,
+`.fsproj`, tool manifest), `docs` (AGENTS.md, README, journal, benchmark CSVs
+and host snapshots), `repo` (`.gitignore`, `.gitattributes`, `nuget.config`,
+`.env.example`, `LICENSE`).
 
 ## Workflow operations
 
@@ -606,11 +620,11 @@ Every worker and audit-helper brief names its exact path.
 The submit implementation must accept only answers matching `[0-9A-Za-z,-]+`
 and keep the session off the command line. Exit 0 for right, 1 for wrong,
 2 only for "You gave an answer too recently" (cooldown) or "You don't seem to
-be solving the right level" (already complete), and 3 for unknown responses.
-Local failures (usage, validation, scaffolding, filesystem, tool, or
-HTTP/transport errors) exit 4; these are not server verdicts. For cooldown,
-the page states "You have Ns left to wait": wait that long and retry the same
-answer.
+be solving the right level" (already complete), and 3 for unknown verdicts,
+including a 200 response with no submission article. Local failures (usage, validation, scaffolding, filesystem,
+tool, or HTTP/transport errors, including 429 with its retry delay) exit 4;
+these are not server verdicts. For cooldown, the page states "You have Ns left
+to wait": wait that long and retry the same answer.
 
 When several workers run in parallel, the orchestrator publishes `Aoc.Ops`
 once to `MAIN/.cache/bin/aoc-ops` (`dotnet publish app/Aoc.Ops -c Release -o
@@ -627,8 +641,8 @@ and `AOC` row exists.
 | Establish repository | `git init -b main`; initial commit via the commit operation; `git remote add origin URL` with the user's publishing URL. `.gitignore` excludes `.env` variants, `inputs/`, `puzzles/`, `fixtures/`, `.cache/`, `bin/` and `obj/`; the user provisions `.env` locally, agents never handle it. |
 | Fetch | `OPS fetch YEAR DAY [--force]`; cache `inputs/<YEAR>/day<DD>.txt`, reuse by default, `--force` re-fetches. Non-200 responses are never cached. |
 | Puzzle / refresh statement | `OPS puzzle YEAR DAY`; always refresh `puzzles/<YEAR>/<DD>.txt`, only day-desc articles, past-answer paragraphs removed. |
-| Submit | `OPS submit YEAR DAY PART ANSWER`; validates before network, prints article text including cooldown duration, exit codes 0/1/2/3/4 as above. |
-| New | `OPS new YEAR DAY [EXPLORATION]`; refuse existing solution paths; create files from `templates/`, registry entries, `.fsproj` compile entries in dependency order, test entries and the fixture directory; format the result with Fantomas. Exploration names are PascalCase modules, CLI variant names are lowercase (`Recursive` becomes `recursive`). Adds a generated FsCheck property and grammar generator stub to replace from the statement. |
+| Submit | `OPS submit YEAR DAY PART ANSWER`; validates before network, prints article text including cooldown duration; unknown verdicts and a 200 body with no article exit 3; 429 exits 4 with retry delay; exit codes 0/1/2/3/4 as above. |
+| New | `OPS new YEAR DAY [EXPLORATION]`; refuse existing solution paths and case-insensitive exploration-name collisions; create files from `templates/`, registry entries, `.fsproj` compile entries in dependency order, test entries and the fixture directory; format the result with Fantomas. Exploration names are PascalCase modules, CLI variant names are lowercase (`Recursive` becomes `recursive`). Scaffolds grammar generator stub and property stubs (parser acceptance and totality for primaries, agreement for explorations). |
 | Test | `nix develop -c dotnet test`; offline operation tests, fixture comparisons, generated exploration properties. Require a nonzero executed test count. |
 | Run personal input | `AOC YEAR DAY < inputs/<YEAR>/day<DD>.txt`; append lowercase EXPLORATION for a variant. |
 | Build | `nix develop -c dotnet build -c Release`; every project, warnings as errors. |
@@ -690,5 +704,10 @@ and `AOC` row exists.
 - `Seq.forall` and `List.forall` short-circuit: running every day and then
   combining results needs `List.map` first, or later days are silently
   skipped.
+- `just` interpolates `{{param}}` into shell source, so a quote in an argument
+  could inject commands; recipes use `set positional-arguments` and forward
+  quoted `"$@"`.
+- Bash reads `08` and `09` as invalid octal in `printf %d` and `$(( ))`; force
+  decimal interpretation with `10#`.
 
 </repository_guidelines>

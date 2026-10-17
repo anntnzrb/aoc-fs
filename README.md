@@ -1,13 +1,25 @@
 # Advent of Code in F#
 
-Run commands from the repository root in the locked Nix development shell:
+Run commands from the repository root in the locked Nix development shell (or
+direnv with the tracked `.envrc`):
 
 ```sh
 nix develop
 dotnet tool restore
-just run <YEAR> <DAY>
-just test
 just check
+```
+
+Fixtures are ignored and written from statements, so a fresh clone runs only the
+tracked unit and analyzer tests.
+
+### Run a day
+
+Inputs are ignored, so fetch before running:
+
+```sh
+cp .env.example .env               # Set AOC_SESSION in .env
+just fetch <YEAR> <DAY>
+just run <YEAR> <DAY>
 ```
 
 `just run YEAR DAY [EXPLORATION]` reads `inputs/<YEAR>/day<DD>.txt` and runs the
@@ -36,13 +48,17 @@ src/Aoc/                     Pure solution library
   Registry.fs                Combined year registries
 app/Aoc.Cli/                 Stdin-filter executable: aoc
 app/Aoc.Ops/                 Workflow executable: aoc-ops
-templates/                   Primary scaffold and registry templates
-tests/Aoc.Tests/              Expecto suite on Microsoft.Testing.Platform
+analyzers/Aoc.Analyzers/     Repository discipline analyzer (AOC001-AOC007)
+templates/                   Primary, exploration, test and registry templates
+tests/Aoc.Tests/             Expecto suite on Microsoft.Testing.Platform
   Repository.fs              Repository root discovery
   Fixtures.fs                Fixture discovery and answer comparisons
   CalendarTests.fs           Puzzle date boundaries
   SolutionTests.fs           Answer rendering and registry key invariants
   OpsTests.fs                Offline operation and regeneration checks
+tests/Aoc.Analyzers.Tests/   Discipline analyzer tests
+bench/                       <YEAR>.csv canonical records, hosts/ snapshots
+docs/journal/                Per-year learning log
 ```
 
 ## Workflow operations
@@ -57,15 +73,20 @@ just fetch <YEAR> <DAY>            # Reuse cached input
 just fetch <YEAR> <DAY> --force    # Replace cached input
 just puzzle <YEAR> <DAY>           # Refresh plain puzzle articles, strip past answers
 just submit <YEAR> <DAY> 1 ANSWER  # Submit a validated answer token
-just new <YEAR> <DAY>              # Scaffold a primary, register and format it
+just new <YEAR> <DAY> [EXPLORATION] # Scaffold a solution, register and format it
+just bench <YEAR> <DAY>            # Measure all variants against the primary
+just record <YEAR> <DAY>           # Append canonical benchmark row to bench/<YEAR>.csv
+just doc                           # Verify solution header tags and #nowarn ban
+just lint                          # Run FSharpLint over the solution
+just analyze                       # Run repository discipline analyzers
 ```
 
 Run these through `nix develop -c just ...` or inside `nix develop`. Direct usage
-is `dotnet run --project app/Aoc.Ops -- COMMAND ...`. `new` refuses existing day
-or test paths; exploration scaffolds are not supported yet. Network and cache
-writes replace files atomically. Submission exits 0 for right, 1 for wrong,
-2 for cooldown/already complete, and 3 for an unknown verdict. All local errors
-(including usage, validation and HTTP failures) exit 4.
+is `dotnet run --project app/Aoc.Ops -- COMMAND ...`. `new` refuses existing day,
+test or colliding exploration paths. Network and cache writes replace files
+atomically. Submission exits 0 for right, 1 for wrong, 2 for cooldown or already
+complete, 3 for an unknown or unrecognised response, and 4 for local, HTTP and
+transport failures (including 429 rate limits with retry delays).
 
 ## Inputs and fixtures
 
@@ -78,5 +99,15 @@ with a newline. The runner checks every registered implementation against each
 fixture, comparing only the expected number of answer lines. Missing fixture
 directories contribute no tests; a missing output file fails its test.
 
-See [AGENTS.md](AGENTS.md) for architecture, coding rules and the workflow for
-adding solutions, explorations and years.
+## Adding a year
+
+Running `just new <YEAR> 1` scaffolds the first day, creates the year directory,
+and regenerates the year registry, root registry and project compile entries.
+Create `docs/journal/<YEAR>.md` by hand to log daily progress and learnings.
+Running `just record <YEAR> <DAY>` creates `bench/<YEAR>.csv` on its first run.
+Calendar years from 2025 on have 12 puzzle days (2015 through 2024 have 25).
+See [AGENTS.md](AGENTS.md) for the full orchestration and integration workflow.
+
+## License
+
+GNU Affero General Public License v3.0, see [LICENSE](LICENSE).
