@@ -68,7 +68,36 @@ let cellZipperTests =
     let inputs =
         gen {
             let! steps = FsCheck.FSharp.Gen.choose (0, 2000)
+            let! start = Gen.elements [ "A"; "B" ]
             let! actions = FsCheck.FSharp.Gen.arrayOfLength 12 (FsCheck.FSharp.Gen.choose (0, 3))
+
+            let action index value =
+                let offset = index * 6 + value * 3
+
+                {
+                    Input.Write = if actions[offset] % 2 = 0 then Input.Zero else Input.One
+                    Input.Move =
+                        if actions[offset + 1] % 2 = 0 then
+                            Input.Left
+                        else
+                            Input.Right
+                    Input.Next = Input.State(if actions[offset + 2] % 2 = 0 then "A" else "B")
+                }
+
+            let expected =
+                {
+                    Input.Start = Input.State start
+                    Input.Steps = steps
+                    Input.States =
+                        [ "A"; "B" ]
+                        |> List.mapi (fun index name ->
+                            Input.State name,
+                            {
+                                Input.IfZero = action index 0
+                                Input.IfOne = action index 1
+                            })
+                        |> Map.ofList
+                }
 
             let definition index name =
                 let branch value =
@@ -80,18 +109,21 @@ let cellZipperTests =
 
                 $"In state %O{name}:\n" + branch 0 + branch 1
 
-            return blueprint steps "A" (definition 0 "A" + definition 1 "B")
+            return blueprint steps start (definition 0 "A" + definition 1 "B"), expected
         }
 
     testList
         "Y2017.Day25.cellzipper"
         [
+            testProperty
+                "parser preserves generated start steps and actions"
+                (Prop.forAll (Arb.fromGen inputs) (fun (text, expected) -> Input.parse text = Ok expected))
             testPropertyWithConfig
                 { FsCheckConfig.defaultConfig with
                     maxTest = 80
                 }
                 "cell zipper agrees on generated blueprints"
-                (FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun text ->
+                (FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun (text, _) ->
                     CellZipper.solve text = Primary.solve text))
             testCase "both tape directions cross multiple words" (fun () ->
                 for direction in [ "left"; "right" ] do
