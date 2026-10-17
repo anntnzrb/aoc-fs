@@ -15,7 +15,8 @@ let private require =
     | Ok value -> value
     | Error message -> failwith message
 
-let private childProcess root executable arguments input =
+/// Runs a child with one deadline for input, output and exit; kills and reaps on failure.
+let childProcessWithin deadline root executable arguments (input: string) =
     let start =
         ProcessStartInfo(
             executable,
@@ -34,24 +35,33 @@ let private childProcess root executable arguments input =
     if not (child.Start()) then
         failwithf "could not start %s" executable
 
-    try
-        let output = child.StandardOutput.ReadToEndAsync()
-        let errors = child.StandardError.ReadToEndAsync()
-        use timeout = new CancellationTokenSource(TimeSpan.FromMinutes 30.)
-        let write = child.StandardInput.WriteAsync(input: string)
-        write.GetAwaiter().GetResult()
-        child.StandardInput.Close()
-        child.WaitForExitAsync(timeout.Token).GetAwaiter().GetResult()
-        watch.Stop()
+    use timeout = new CancellationTokenSource(deadline: TimeSpan)
 
-        child.ExitCode,
-        output.GetAwaiter().GetResult(),
-        errors.GetAwaiter().GetResult(),
-        decimal watch.Elapsed.TotalMilliseconds * 1000M
+    try
+        try
+            let output = child.StandardOutput.ReadToEndAsync(timeout.Token)
+            let errors = child.StandardError.ReadToEndAsync(timeout.Token)
+            let write = child.StandardInput.WriteAsync(input.AsMemory(), timeout.Token)
+            write.GetAwaiter().GetResult()
+            child.StandardInput.FlushAsync(timeout.Token).GetAwaiter().GetResult()
+            child.StandardInput.Close()
+            child.WaitForExitAsync(timeout.Token).GetAwaiter().GetResult()
+            watch.Stop()
+
+            child.ExitCode,
+            output.GetAwaiter().GetResult(),
+            errors.GetAwaiter().GetResult(),
+            decimal watch.Elapsed.TotalMilliseconds * 1000M
+        with
+        | :? OperationCanceledException
+        | :? IOException when timeout.IsCancellationRequested -> failwith "child process timed out"
     finally
         if child.Id > 0 && not child.HasExited then
             child.Kill(true)
             child.WaitForExit()
+
+let private childProcess root executable arguments input =
+    childProcessWithin (TimeSpan.FromMinutes 30.) root executable arguments input
 
 let private command root executable arguments =
     let code, output, _, _ = childProcess root executable arguments ""

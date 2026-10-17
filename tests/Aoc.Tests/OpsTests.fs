@@ -1,6 +1,10 @@
 module Aoc.Tests.OpsTests
 
 open System.IO
+open System
+open System.Net
+open System.Net.Sockets
+open System.Threading.Tasks
 open Expecto
 open Aoc.Ops
 open Aoc.Ops.Bench
@@ -8,11 +12,220 @@ open Aoc.Ops.Bench
 let private template name =
     File.ReadAllText(Path.Combine(Repository.root, "templates", name + ".fs.template"))
 
+let private loopback status (headers: (string * string) list) body action =
+    use port = new TcpListener(IPAddress.Loopback, 0)
+    port.Start()
+
+    let address =
+        Uri(sprintf "http://127.0.0.1:%d/" (port.LocalEndpoint :?> IPEndPoint).Port)
+
+    port.Stop()
+    use listener = new HttpListener()
+    listener.Prefixes.Add address.AbsoluteUri
+    listener.Start()
+
+    let serving =
+        Task.Run(fun () ->
+            let context = listener.GetContext()
+            let cookie = context.Request.Headers["Cookie"]
+            let agent = context.Request.UserAgent
+            use reader = new StreamReader(context.Request.InputStream)
+            let form = reader.ReadToEnd()
+            context.Response.StatusCode <- status
+
+            for name, value in headers do
+                context.Response.Headers.Add(name, value)
+
+            let bytes = Text.Encoding.UTF8.GetBytes(body: string)
+            context.Response.ContentLength64 <- int64 bytes.Length
+            context.Response.OutputStream.Write(bytes, 0, bytes.Length)
+            context.Response.Close()
+            cookie, agent, form)
+
+    try
+        let result = action address
+        let received = serving.WaitAsync(TimeSpan.FromSeconds 5.).GetAwaiter().GetResult()
+        result, received
+    finally
+        listener.Stop()
+
+        try
+            serving.GetAwaiter().GetResult()
+            |> ignore<(string | null) * (string | null) * string>
+        with _ ->
+            ()
+
 [<Tests>]
 let tests =
     testList
         "Ops"
         [
+            testList
+                "HTTP boundary"
+                [
+                    let token = "synthetic-session-123456"
+
+                    for status, headers, expected in
+                        [
+                            200, [], Ok()
+                            503, [], Error "HTTP 503"
+                            429, [ "Retry-After", "7" ], Error "rate limited; retry after 7s"
+                            429, [ "Retry-After", token ], Error "rate limited; retry delay unavailable"
+                            429, [], Error "rate limited; retry delay unavailable"
+                        ] do
+                        testCase (sprintf "fetch status %d headers %A" status headers) (fun () ->
+                            let directory =
+                                Path.Combine(Path.GetTempPath(), "aoc-http-" + Guid.NewGuid().ToString("N"))
+
+                            let cache = Path.Combine(directory, "input.txt")
+
+                            try
+                                let result, (cookie, agent, _) =
+                                    loopback status headers "cached content" (fun address ->
+                                        Program.fetch address token "2017/day/1/input" cache)
+
+                                Expect.equal result expected "Public fetch result"
+                                Expect.equal cookie ("session=" + token) "Session cookie crosses real HTTP boundary"
+                                Expect.equal agent "aoc-fs" "Anonymous User-Agent"
+                                Expect.equal (File.Exists cache) (status = 200) "Only 200 caches"
+
+                                if status = 200 then
+                                    Expect.equal (File.ReadAllText cache) "cached content" "Cache contents"
+
+                                match result with
+                                | Error message -> Expect.isFalse (message.Contains token) "No session disclosure"
+                                | Ok() -> ()
+                            finally
+                                if Directory.Exists directory then
+                                    Directory.Delete(directory, true))
+
+                    for body, code, diagnostic in
+                        [
+                            "<main><article>That's the right answer</article></main>", 0, "That's the right answer\n"
+                            "<main><article>That's not the right answer</article></main>",
+                            1,
+                            "That's not the right answer\n"
+                            "<main><article>You gave an answer too recently</article></main>",
+                            2,
+                            "You gave an answer too recently\n"
+                            "<main><article>You don't seem to be solving the right level</article></main>",
+                            2,
+                            "You don't seem to be solving the right level\n"
+                            "<main><article>unexpected " + token + "</article></main>", 3, "unexpected [redacted]\n"
+                            "unexpected " + token, 3, "no submission article found"
+                        ] do
+                        testCase (sprintf "submit %d %s" code diagnostic) (fun () ->
+                            let result, (_, _, form) =
+                                loopback 200 [] body (fun address ->
+                                    Program.submit address token 2017 1 1 "test-answer")
+
+                            Expect.equal result (code, diagnostic) "Same submission function as main"
+                            Expect.equal form "level=1&answer=test-answer" "Submission form"
+                            Expect.isFalse ((snd result).Contains token) "No session disclosure")
+
+                    for status, headers, expected in
+                        [
+                            503, [], "HTTP 503"
+                            429, [ "Retry-After", "9" ], "rate limited; retry after 9s"
+                        ] do
+                        testCase (sprintf "submit HTTP failure %d" status) (fun () ->
+                            let result, _ =
+                                loopback status headers token (fun address ->
+                                    Program.submit address token 2017 1 1 "test-answer")
+
+                            Expect.equal result (4, expected) "HTTP failures remain local/transport failures")
+
+                    testCase "Retry-After HTTP date" (fun () ->
+                        let now = DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+
+                        Expect.equal
+                            (Program.retryAfter now (Some "Thu, 01 Jan 2026 00:00:12 GMT"))
+                            "rate limited; retry after 12s"
+                            "Date delay"
+
+                        Expect.equal
+                            (Program.retryAfter now (Some "Wed, 31 Dec 2025 23:59:59 GMT"))
+                            "rate limited; retry after 0s"
+                            "Past date")
+
+                    testCase "transport failure is fixed and sanitized" (fun () ->
+                        use port = new TcpListener(IPAddress.Loopback, 0)
+                        port.Start()
+
+                        let address =
+                            Uri(sprintf "http://127.0.0.1:%d/" (port.LocalEndpoint :?> IPEndPoint).Port)
+
+                        port.Stop()
+
+                        Expect.equal
+                            (Program.submit address token 2017 1 1 "test-answer")
+                            (4, "HTTP request failed")
+                            "Refused loopback connection")
+                ]
+            testCase "exploration CLI collisions are rejected purely" (fun () ->
+                let files = List.singleton "Y2017/Day03/Dfs.fs"
+
+                Expect.equal
+                    (Scaffold.uniqueExploration 2017 3 "DFS" files)
+                    (Error "exploration CLI name already exists")
+                    "Case-insensitive CLI collision"
+
+                Expect.equal (Scaffold.uniqueExploration 2017 3 "Bfs" files) (Ok()) "Distinct name")
+
+            testCase "case-colliding scaffold refuses before writes" (fun () ->
+                let directory =
+                    Path.Combine(Path.GetTempPath(), "aoc-collision-" + Guid.NewGuid().ToString("N"))
+
+                let day = Path.Combine(directory, "src/Aoc/Y2017/Day03")
+
+                try
+                    Directory.CreateDirectory day |> ignore<DirectoryInfo>
+                    let path = Path.Combine(day, "Dfs.fs")
+                    File.WriteAllText(path, "preserve")
+
+                    Expect.throwsC (fun () -> Program.scaffold directory 2017 3 (Some "DFS")) (fun error ->
+                        Expect.equal error.Message "exploration CLI name already exists" "Collision diagnostic")
+
+                    Expect.equal (Directory.GetFiles(day) |> Array.map Path.GetFileName) [| "Dfs.fs" |] "No added file"
+                    Expect.equal (File.ReadAllText path) "preserve" "Original preserved"
+                finally
+                    Directory.Delete(directory, true))
+            testCase "blocked stdin obeys process deadline and reaps child" (fun () ->
+                let executable =
+                    Environment.GetEnvironmentVariable "PATH"
+                    |> Option.ofObj
+                    |> Option.defaultValue ""
+                    |> fun paths -> paths.Split Path.PathSeparator
+                    |> Array.map (fun path -> Path.Combine(path, "sleep"))
+                    |> Array.tryFind File.Exists
+                    |> Option.defaultWith (fun () -> failtest "sleep executable unavailable")
+
+                let before =
+                    Diagnostics.Process.GetProcessesByName "sleep"
+                    |> Array.map (fun child -> use child = child in child.Id)
+                    |> Set.ofArray
+
+                let watch = Diagnostics.Stopwatch.StartNew()
+
+                Expect.throwsC
+                    (fun () ->
+                        Benchmark.childProcessWithin
+                            (TimeSpan.FromMilliseconds 300.)
+                            Repository.root
+                            executable
+                            [ "60" ]
+                            (String.replicate (2 * 1024 * 1024) "x")
+                        |> ignore<int * string * string * decimal>)
+                    (fun error -> Expect.equal error.Message "child process timed out" "Fixed timeout diagnostic")
+
+                Expect.isLessThan watch.Elapsed (TimeSpan.FromSeconds 5.) "Deadline includes blocked stdin"
+
+                let after =
+                    Diagnostics.Process.GetProcessesByName "sleep"
+                    |> Array.map (fun child -> use child = child in child.Id)
+                    |> Set.ofArray
+
+                Expect.equal (Set.difference after before) Set.empty "No surviving sleep child")
             testList
                 "Doc"
                 [

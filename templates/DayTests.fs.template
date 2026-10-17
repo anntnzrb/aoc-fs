@@ -3,4 +3,16 @@ module Aoc.Tests.Y{{YEAR}}.Day{{DAY}}Tests
 open Expecto
 
 [<Tests>]
-let tests = testList "Y{{YEAR}}.Day{{DAY}}" []
+let tests =
+    // TODO replace this placeholder with a generator for the statement's grammar.
+    let inputs = FsCheck.FSharp.Gen.constant ""
+    let generated = FsCheck.FSharp.Arb.fromGen inputs
+    testList "Y{{YEAR}}.Day{{DAY}}" [
+        testProperty "parser accepts generated input"
+            (FsCheck.FSharp.Prop.forAll generated (fun input ->
+                Aoc.Y{{YEAR}}.Day{{DAY}}.Input.parse input |> Result.isOk))
+        testProperty "solver is total"
+            (FsCheck.FSharp.Prop.forAll generated (fun input ->
+                match Aoc.Y{{YEAR}}.Day{{DAY}}.Primary.solve input with
+                | Ok _ | Error _ -> true))
+    ]

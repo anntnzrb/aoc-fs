@@ -45,23 +45,78 @@ let private session root =
 /// The User-Agent sent to adventofcode.com: a bare product token, deliberately anonymous.
 let userAgent = "aoc-fs"
 
-let private request root method (url: string) form =
-    let token = session root
-    use client = new HttpClient()
-    use message = new HttpRequestMessage(method, url)
-    message.Headers.Add("Cookie", "session=" + token)
-    message.Headers.Add("User-Agent", userAgent)
+/// Formats an optional Retry-After value without reflecting untrusted header text.
+let retryAfter (now: DateTimeOffset) (header: string option) =
+    let delay =
+        header
+        |> Option.bind (fun value ->
+            match
+                Int64.TryParse(value, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture)
+            with
+            | true, seconds -> Some(decimal seconds)
+            | _ ->
+                match
+                    DateTimeOffset.TryParseExact(
+                        value,
+                        "r",
+                        Globalization.CultureInfo.InvariantCulture,
+                        Globalization.DateTimeStyles.AssumeUniversal
+                    )
+                with
+                | true, date -> Some(max 0M (Decimal.Ceiling(decimal (date - now).TotalSeconds)))
+                | _ -> None)
 
-    match form with
-    | Some values -> message.Content <- new FormUrlEncodedContent(values: KeyValuePair<string, string> list)
-    | None -> ()
+    match delay with
+    | Some seconds -> sprintf "rate limited; retry after %Ms" seconds
+    | None -> "rate limited; retry delay unavailable"
 
-    use response = client.Send message
+/// Sends one request, returning fixed diagnostics on transport failure and HTTP errors.
+let request (baseAddress: Uri) token method (path: string) form =
+    try
+        if Session.parse ("AOC_SESSION=" + token) <> Ok token then
+            failwith "invalid session cookie"
 
-    if not response.IsSuccessStatusCode then
-        failwithf "HTTP %d" (int response.StatusCode)
+        use client = new HttpClient()
+        use message = new HttpRequestMessage(method, Uri(baseAddress, path))
+        message.Headers.Add("Cookie", "session=" + token)
+        message.Headers.Add("User-Agent", userAgent)
 
-    response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        match form with
+        | Some values -> message.Content <- new FormUrlEncodedContent(values: KeyValuePair<string, string> list)
+        | None -> ()
+
+        use response = client.Send message
+
+        match int response.StatusCode with
+        | 200 -> Ok(response.Content.ReadAsStringAsync().GetAwaiter().GetResult())
+        | 429 ->
+            let header =
+                match response.Headers.TryGetValues "Retry-After" with
+                | true, values -> values |> Option.ofObj |> Option.bind Seq.tryHead
+                | _ -> None
+
+            Error(retryAfter DateTimeOffset.UtcNow header)
+        | status -> Error(sprintf "HTTP %d" status)
+    with _ ->
+        Error "HTTP request failed"
+
+/// Fetches and atomically caches only an HTTP 200 response.
+let fetch baseAddress token path cache =
+    request baseAddress token HttpMethod.Get path None
+    |> Result.map (fun text -> atomicWrite cache text)
+
+/// Submits once and returns the public exit code and sanitized diagnostic.
+let submit baseAddress token year day part answer =
+    let form = [ KeyValuePair("level", string part); KeyValuePair("answer", answer) ]
+
+    match request baseAddress token HttpMethod.Post (sprintf "%d/day/%d/answer" year day) (Some form) with
+    | Error message -> 4, message
+    | Ok html ->
+        match Statement.submission html with
+        | Error _ -> 3, "no submission article found"
+        | Ok text -> Submission.classify text, text.Replace(token, "[redacted]")
+
+let private baseAddress = Uri "https://adventofcode.com/"
 
 let private scan root =
     let files =
@@ -213,9 +268,16 @@ let scaffold root year day exploration =
             || Directory.Exists(at testPath)
         then
             failwith "refusing to overwrite an existing day or test path"
-    | Some _ ->
+    | Some name ->
         if File.Exists(at solutionPath) || Directory.Exists(at solutionPath) then
             failwith "refusing to overwrite an existing exploration path"
+
+        if Directory.Exists(at dayPath) then
+            Directory.GetFiles(at dayPath, "*.fs")
+            |> Array.map (fun path -> sprintf "Y%d/Day%02d/%s" year day (Path.GetFileName path))
+            |> Array.toList
+            |> Scaffold.uniqueExploration year day name
+            |> require
 
         if
             [ dayPath + "/Primary.fs"; dayPath + "/Input.fs"; testPath ]
@@ -312,14 +374,15 @@ let private run root =
         let path = Path.Combine(root, "inputs", string year, sprintf "day%02d.txt" day)
 
         if force || not (File.Exists path) then
-            request root HttpMethod.Get (sprintf "https://adventofcode.com/%d/day/%d/input" year day) None
-            |> atomicWrite path
+            fetch baseAddress (session root) (sprintf "%d/day/%d/input" year day) path
+            |> require
 
         printfn "%s" path
         0
     | Command.Puzzle(year, day) ->
         let text =
-            request root HttpMethod.Get (sprintf "https://adventofcode.com/%d/day/%d" year day) None
+            request baseAddress (session root) HttpMethod.Get (sprintf "%d/day/%d" year day) None
+            |> require
             |> Statement.extract
             |> require
 
@@ -328,15 +391,9 @@ let private run root =
         printfn "%s" path
         0
     | Command.Submit(year, day, part, answer) ->
-        let form = [ KeyValuePair("level", string part); KeyValuePair("answer", answer) ]
-
-        let text =
-            request root HttpMethod.Post (sprintf "https://adventofcode.com/%d/day/%d/answer" year day) (Some form)
-            |> Statement.submission
-            |> require
-
+        let code, text = submit baseAddress (session root) year day part answer
         Console.Out.Write text
-        Submission.classify text
+        code
     | Command.Bench(year, day) -> Benchmark.run root year day false
     | Command.Record(year, day) -> Benchmark.run root year day true
     | Command.New(year, day) ->

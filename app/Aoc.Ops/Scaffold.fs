@@ -37,6 +37,16 @@ let private explorations year day paths =
     |> List.distinct
     |> List.sort
 
+/// Rejects exploration names that would share a case-insensitive CLI key.
+let uniqueExploration year day (name: string) paths =
+    if
+        explorations year day paths
+        |> List.exists (fun existing -> existing.ToLowerInvariant() = name.ToLowerInvariant())
+    then
+        Error "exploration CLI name already exists"
+    else
+        Ok()
+
 /// Substitutes an exploration's PascalCase module name and lowercase CLI variant.
 let exploration year day (name: string) template =
     render year day template
