@@ -157,12 +157,13 @@ let private execute initialA loops (program: Instruction array) =
                 | Jump(condition, distance) ->
                     let offset = if value condition <> 0L then value distance else 1L
 
-                    // An unrepresentable target still terminates outside the program.
+                    // position is within the program, so only an upward jump can overflow; saturating
+                    // it still terminates outside the program without a bigint per jump.
                     let target =
-                        bigint position + bigint offset
-                        |> max (bigint System.Int64.MinValue)
-                        |> min (bigint System.Int64.MaxValue)
-                        |> int64
+                        if offset > System.Int64.MaxValue - position then
+                            System.Int64.MaxValue
+                        else
+                            position + offset
 
                     loop target registers multiplications
 
