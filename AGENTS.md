@@ -704,6 +704,10 @@ and `AOC` row exists.
 - `Seq.forall` and `List.forall` short-circuit: running every day and then
   combining results needs `List.map` first, or later days are silently
   skipped.
+- An overflow guard on a hot path costs what it allocates: computing every
+  2017 day 23 jump in `bigint` added 19% work. Derive an `int64` comparison
+  from invariants already established (a position inside the program can only
+  overflow upward) and measure every checked-arithmetic fix.
 - `just` interpolates `{{param}}` into shell source, so a quote in an argument
   could inject commands; recipes use `set positional-arguments` and forward
   quoted `"$@"`.
