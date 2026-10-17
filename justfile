@@ -1,29 +1,32 @@
+set positional-arguments
+set shell := ["bash", "-cu"]
+
 default:
     @just --list
 
 run year day *variant:
-    dotnet run --project app/Aoc.Cli -c Release -- {{year}} {{day}} {{variant}} < inputs/{{year}}/day$(printf %02d {{day}}).txt
+    dotnet run --project app/Aoc.Cli -c Release -- "$@" < "inputs/$1/day$(printf %02d "$((10#$2))").txt"
 
 test:
     dotnet test
 
 fetch year day *flags:
-    dotnet run --project app/Aoc.Ops -- fetch {{year}} {{day}} {{flags}}
+    dotnet run --project app/Aoc.Ops -- fetch "$@"
 
 puzzle year day:
-    dotnet run --project app/Aoc.Ops -- puzzle {{year}} {{day}}
+    dotnet run --project app/Aoc.Ops -- puzzle "$@"
 
 submit year day part answer:
-    dotnet run --project app/Aoc.Ops -- submit {{year}} {{day}} {{part}} '{{answer}}'
+    dotnet run --project app/Aoc.Ops -- submit "$@"
 
-new year day:
-    dotnet run --project app/Aoc.Ops -- new {{year}} {{day}}
+new year day *exploration:
+    dotnet run --project app/Aoc.Ops -- new "$@"
 
 bench year day:
-    dotnet run --project app/Aoc.Ops -- bench {{year}} {{day}}
+    dotnet run --project app/Aoc.Ops -- bench "$@"
 
 record year day:
-    dotnet run --project app/Aoc.Ops -- record {{year}} {{day}}
+    dotnet run --project app/Aoc.Ops -- record "$@"
 
 fmt:
     dotnet tool run fantomas .
