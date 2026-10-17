@@ -52,6 +52,21 @@ let tests =
     testList
         "Y2017.Day08"
         [
+            testCase "decrement by minimum overflows" (fun () ->
+                Expect.equal
+                    (Primary.solve "a dec -9223372036854775808 if a == 0")
+                    (Error "register overflow")
+                    "zero minus MinValue is above MaxValue")
+            testCase "successive increments detect overflow" (fun () ->
+                Expect.equal
+                    (Primary.solve "a inc 9223372036854775807 if a == 0\na inc 1 if a > 0")
+                    (Error "register overflow")
+                    "MaxValue plus one is outside the register range")
+            testCase "skipped overflowing update succeeds" (fun () ->
+                Expect.equal
+                    (Primary.solve "a dec -9223372036854775808 if a != 0")
+                    (Ok(Answers.both "0" "0"))
+                    "a false condition never evaluates its update")
             testPropertyWithConfig
                 config
                 "generated instructions preserve their fields and order"

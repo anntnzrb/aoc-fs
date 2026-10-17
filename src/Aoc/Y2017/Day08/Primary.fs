@@ -25,23 +25,32 @@ let private execute (registers, highest) instruction =
 
     let updated =
         match applies, instruction.Operation with
-        | false, _ -> current
-        | true, Increase -> current + instruction.Amount
-        | true, Decrease -> current - instruction.Amount
+        | false, _ -> bigint current
+        | true, Increase -> bigint current + bigint instruction.Amount
+        | true, Decrease -> bigint current - bigint instruction.Amount
 
-    let registers =
-        registers
-        |> Map.add instruction.Source source
-        |> Map.add instruction.Target updated
+    if updated < bigint System.Int64.MinValue || updated > bigint System.Int64.MaxValue then
+        Error "register overflow"
+    else
+        let updated = int64 updated
 
-    registers, max highest updated
+        let registers =
+            registers
+            |> Map.add instruction.Source source
+            |> Map.add instruction.Target updated
+
+        Ok(registers, max highest updated)
 
 let solve: Solver =
     fun input ->
         input
         |> Input.parse
-        |> Result.map (fun instructions ->
-            let registers, highest = instructions |> List.fold execute (Map.empty, 0L)
+        |> Result.bind (fun instructions ->
+            instructions
+            |> List.fold
+                (fun state instruction -> state |> Result.bind (fun state -> execute state instruction))
+                (Ok(Map.empty, 0L)))
+        |> Result.map (fun (registers, highest) ->
 
             let largest =
                 if Map.isEmpty registers then
