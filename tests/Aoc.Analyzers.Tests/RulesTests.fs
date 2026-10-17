@@ -119,6 +119,21 @@ let tests =
                     "array blit", "let update values target = Array.blit values 0 target 0 1"
                     "zero create", "let value = Array.zeroCreate<int> 3"
                     "zero create 2d", "let value = Array2D.zeroCreate<int> 2 3"
+                    "array sort in place", "let update (xs: int array) = xs |> Array.sortInPlace"
+                    "array sort in place by", "let update (xs: int array) = Array.sortInPlaceBy id xs"
+                    "array sort in place with", "let update (xs: int array) = Array.sortInPlaceWith compare xs"
+                    "system array sort", "let update (xs: int array) = System.Array.Sort xs"
+                    "system array reverse", "let update (xs: int array) = System.Array.Reverse xs"
+                    "system array clear", "let update (xs: int array) = System.Array.Clear xs"
+                    "system array fill", "let update (xs: int array) = System.Array.Fill(xs, 1)"
+                    "system array copy", "let update (xs: int array) (ys: int array) = System.Array.Copy(xs, ys, 1)"
+                    "system array constrained copy",
+                    "let update (xs: int array) (ys: int array) = System.Array.ConstrainedCopy(xs, 0, ys, 0, 1)"
+                    "system array set value", "let update (xs: int array) = xs.SetValue(1, 0)"
+                    "system array resize", "let update (xs: int array ref) = System.Array.Resize(&xs.contents, 2)"
+                    "reference assignment", "let update (cell: int ref) = cell := 1"
+                    "reference increment", "let update (cell: int ref) = incr cell"
+                    "reference decrement", "let update (cell: int ref) = decr cell"
                 ] do
                 testCase ("mutable operation " + name) (fun () ->
                     Expect.isTrue
@@ -149,6 +164,33 @@ let tests =
                     (diagnostics primary "let value (x: int) = (id << id) x"
                      |> List.exists (fun diagnostic -> diagnostic.Code = "AOC005"))
                     "composition")
+            for path in
+                [
+                    "/repo/src/Aoc/Y2017/Day01/Mutable.fs"
+                    "/repo/app/Aoc.Cli/Main.fs"
+                    "/repo/analyzers/Aoc.Analyzers/Rules.fs"
+                    "/repo/tests/Aoc.Tests/Example.fs"
+                ] do
+                for name, source in
+                    [
+                        "pipeline", "let value = id <| 1"
+                        "composition", "let value (x: int) = (id << id) x"
+                    ] do
+                    testCase ("reverse " + name + " in " + path) (fun () ->
+                        Expect.equal
+                            (diagnostics path source |> List.map (fun diagnostic -> diagnostic.Code))
+                            [ "AOC005" ]
+                            "Reverse operators are forbidden in every analyzed file")
+            testCase "FParsec alternative operator is accepted" (fun () ->
+                Expect.isEmpty
+                    (diagnostics primary "open FParsec\nlet parser: Parser<int, unit> = pint32 <|> preturn 0")
+                    "Alternative is distinct from reverse application")
+            testCase "shadowed mutator names are accepted" (fun () ->
+                Expect.isEmpty
+                    (diagnostics
+                        primary
+                        "module Array =\n    let sortInPlace xs = xs\nmodule System =\n    module Array =\n        let Sort xs = xs\nlet incr x = x\nlet decr x = x\nlet (:=) x y = x + y\nlet value = [1] |> Array.sortInPlace |> System.Array.Sort |> incr |> decr\nlet other = 1 := 2")
+                    "Only resolved framework mutation symbols are forbidden")
             testCase "comments strings and shadowed names are harmless" (fun () ->
                 Expect.isEmpty
                     (diagnostics

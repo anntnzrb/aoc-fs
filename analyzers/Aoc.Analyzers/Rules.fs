@@ -257,61 +257,87 @@ let private syntaxMessages solution forwardedReceiver (syntax: obj list) =
 
 
 let private symbolMessages solution (uses: FSharpSymbolUse list) =
-    if not solution then
-        []
-    else
-        uses
-        |> List.choose (fun usage ->
-            if usage.IsFromDefinition then
-                None
-            else
-                match usage.Symbol with
-                | :? FSharpEntity as entity when collection entity ->
+    uses
+    |> List.choose (fun usage ->
+        if usage.IsFromDefinition then
+            None
+        else
+            match usage.Symbol with
+            | :? FSharpEntity as entity when solution && collection entity ->
+                Some(message "AOC003" "Mutable collections are forbidden in solutions." usage.Range)
+            | :? FSharpMemberOrFunctionOrValue as symbol ->
+                let name = symbol.FullName
+
+                let owner =
+                    symbol.DeclaringEntity
+                    |> Option.map (fun entity -> entity.FullName)
+                    |> Option.defaultValue ""
+
+                if
+                    owner = "Microsoft.FSharp.Core.Operators"
+                    && [ "op_PipeLeft"; "op_ComposeLeft" ] |> List.contains symbol.CompiledName
+                then
+                    Some(message "AOC005" "Use forward pipelines and composition." usage.Range)
+                elif not solution then
+                    None
+                elif symbol.DeclaringEntity |> Option.exists collection then
                     Some(message "AOC003" "Mutable collections are forbidden in solutions." usage.Range)
-                | :? FSharpMemberOrFunctionOrValue as symbol ->
-                    let name = symbol.FullName
-
-                    let owner =
-                        symbol.DeclaringEntity
-                        |> Option.map (fun entity -> entity.FullName)
-                        |> Option.defaultValue ""
-
-                    if symbol.DeclaringEntity |> Option.exists collection then
-                        Some(message "AOC003" "Mutable collections are forbidden in solutions." usage.Range)
-                    elif
-                        [
-                            "Microsoft.FSharp.Collections.ArrayModule"
-                            "Microsoft.FSharp.Collections.Array2DModule"
+                elif
+                    [
+                        "Microsoft.FSharp.Collections.ArrayModule"
+                        "Microsoft.FSharp.Collections.Array2DModule"
+                    ]
+                    |> List.contains owner
+                    && [
+                        "Set"
+                        "Fill"
+                        "Blit"
+                        "CopyTo"
+                        "ZeroCreate"
+                        "SortInPlace"
+                        "SortInPlaceBy"
+                        "SortInPlaceWith"
+                       ]
+                       |> List.contains symbol.CompiledName
+                then
+                    Some(message "AOC003" "In-place array operations and zeroCreate are forbidden." usage.Range)
+                elif
+                    (owner = "System.Array"
+                     && [
+                         "Sort"
+                         "Reverse"
+                         "Clear"
+                         "Fill"
+                         "Copy"
+                         "ConstrainedCopy"
+                         "SetValue"
+                         "Resize"
                         ]
-                        |> List.contains owner
-                        && [ "Set"; "Fill"; "Blit"; "CopyTo"; "ZeroCreate" ]
-                           |> List.contains symbol.CompiledName
-                    then
-                        Some(message "AOC003" "In-place array operations and zeroCreate are forbidden." usage.Range)
-                    elif
-                        [
-                            "Microsoft.FSharp.Collections.List.head"
-                            "Microsoft.FSharp.Collections.Seq.head"
-                            "Microsoft.FSharp.Collections.List.item"
-                            "Microsoft.FSharp.Core.Operators.failwith"
-                            "Microsoft.FSharp.Core.Operators.raise"
-                            "Microsoft.FSharp.Core.Operators.invalidArg"
-                        ]
-                        |> List.contains name
-                    then
-                        Some(message "AOC004" "Partial functions are forbidden; return Option or Result." usage.Range)
-                    elif
-                        owner = "Microsoft.FSharp.Core.Operators"
-                        && [ "op_PipeLeft"; "op_ComposeLeft" ] |> List.contains symbol.CompiledName
-                    then
-                        Some(message "AOC005" "Use forward pipelines and composition." usage.Range)
-                    else
-                        None
-                | _ -> None)
+                        |> List.contains symbol.CompiledName)
+                    || (owner = "Microsoft.FSharp.Core.Operators"
+                        && [ "op_ColonEquals"; "Increment"; "Decrement" ]
+                           |> List.contains symbol.CompiledName)
+                then
+                    Some(message "AOC003" "Array and reference mutation is forbidden in solutions." usage.Range)
+                elif
+                    [
+                        "Microsoft.FSharp.Collections.List.head"
+                        "Microsoft.FSharp.Collections.Seq.head"
+                        "Microsoft.FSharp.Collections.List.item"
+                        "Microsoft.FSharp.Core.Operators.failwith"
+                        "Microsoft.FSharp.Core.Operators.raise"
+                        "Microsoft.FSharp.Core.Operators.invalidArg"
+                    ]
+                    |> List.contains name
+                then
+                    Some(message "AOC004" "Partial functions are forbidden; return Option or Result." usage.Range)
+                else
+                    None
+            | _ -> None)
 
 
 /// Enforce functional solution rules and forbid authored object models in production files.
-/// Exploration modules are exempt from solution rules, but not object-model rules.
+/// Reverse operators are forbidden in every file; explorations are exempt from mutation rules.
 [<CliAnalyzer("Aoc.Discipline", "Enforce repository functional programming rules")>]
 let analyze: Analyzer<CliContext> =
     fun context ->
@@ -319,11 +345,13 @@ let analyze: Analyzer<CliContext> =
             let solution, production =
                 sourceScope context.ProjectOptions.ProjectFileName context.FileName
 
+            let uses = context.GetAllSymbolUsesOfFile() |> Seq.toList
+            let symbolMessages = symbolMessages solution uses
+
             if not production then
-                return []
+                return symbolMessages
             else
                 let syntax = nodes (box context.ParseFileResults.ParseTree) |> Seq.toList
-                let uses = context.GetAllSymbolUsesOfFile() |> Seq.toList
                 let normalized = context.FileName.Replace('\\', '/')
 
                 let libraryDocumentation =
@@ -334,7 +362,6 @@ let analyze: Analyzer<CliContext> =
                 // Only the second tuple binding of FParsec's real factory may be assigned.
                 // Match the reference's declaration identity, so shadowed lookalikes are rejected.
                 let syntaxMessages = syntaxMessages solution (forwardedReceiver syntax uses) syntax
-                let symbolMessages = symbolMessages solution uses
 
                 let! optionMessages =
                     if solution then
