@@ -156,7 +156,15 @@ let private execute initialA loops (program: Instruction array) =
                     | Ok nextRegisters -> loop (position + 1L) nextRegisters (multiplications + 1L)
                 | Jump(condition, distance) ->
                     let offset = if value condition <> 0L then value distance else 1L
-                    loop (position + offset) registers multiplications
+
+                    // An unrepresentable target still terminates outside the program.
+                    let target =
+                        bigint position + bigint offset
+                        |> max (bigint System.Int64.MinValue)
+                        |> min (bigint System.Int64.MaxValue)
+                        |> int64
+
+                    loop target registers multiplications
 
     loop 0L (Array.init 8 (fun register -> if register = index A then initialA else 0L)) 0L
 

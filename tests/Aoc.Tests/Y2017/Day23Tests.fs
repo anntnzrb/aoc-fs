@@ -68,11 +68,111 @@ let private config =
         endSize = 8
     }
 
+let rec private interpret (program: Input.Instruction array) position registers multiplications =
+    let read register =
+        Map.tryFind register registers |> Option.defaultValue 0L
+
+    let value =
+        function
+        | Input.Literal number -> number
+        | Input.Read register -> read register
+
+    match Array.tryItem position program with
+    | None -> multiplications, read Input.H
+    | Some instruction ->
+        match instruction with
+        | Input.Set(target, source) ->
+            interpret program (position + 1) (Map.add target (value source) registers) multiplications
+        | Input.Sub(target, source) ->
+            interpret program (position + 1) (Map.add target (read target - value source) registers) multiplications
+        | Input.Mul(target, source) ->
+            interpret
+                program
+                (position + 1)
+                (Map.add target (read target * value source) registers)
+                (multiplications + 1L)
+        | Input.Jump(condition, offset) ->
+            interpret
+                program
+                (position + if value condition = 0L then 1 else int (value offset))
+                registers
+                multiplications
+
+let private factorPrograms =
+    gen {
+        let! bound = Gen.choose (3, 9)
+        let! names = Gen.shuffle [ Input.B; Input.C; Input.D; Input.E; Input.F; Input.G ]
+
+        match Array.toList names with
+        | d :: e :: g :: b :: f :: _ ->
+            return
+                [
+                    Input.Set(b, Input.Literal(int64 bound))
+                    Input.Sub(b, Input.Read Input.A)
+                    Input.Sub(b, Input.Literal -1L)
+                    Input.Set(f, Input.Literal 1L)
+                    Input.Set(d, Input.Literal 2L)
+                    Input.Set(e, Input.Literal 2L)
+                    Input.Set(g, Input.Read d)
+                    Input.Mul(g, Input.Read e)
+                    Input.Sub(g, Input.Read b)
+                    Input.Jump(Input.Read g, Input.Literal 2L)
+                    Input.Set(f, Input.Literal 0L)
+                    Input.Sub(e, Input.Literal -1L)
+                    Input.Set(g, Input.Read e)
+                    Input.Sub(g, Input.Read b)
+                    Input.Jump(Input.Read g, Input.Literal -8L)
+                    Input.Sub(d, Input.Literal -1L)
+                    Input.Set(g, Input.Read d)
+                    Input.Sub(g, Input.Read b)
+                    Input.Jump(Input.Read g, Input.Literal -13L)
+                    Input.Set(Input.H, Input.Read f)
+                    Input.Mul(Input.H, Input.Literal 1000L)
+                    Input.Sub(Input.H, Input.Read d)
+                    Input.Sub(Input.H, Input.Read e)
+                    Input.Sub(Input.H, Input.Read g)
+                ]
+        | _ -> return []
+    }
+
 [<Tests>]
 let tests =
     testList
         "Y2017.Day23"
         [
+            testPropertyWithConfig
+                config
+                "recognised renamed factor loops agree with literal execution for both initial a values"
+                (Prop.forAll (Arb.fromGen factorPrograms) (fun instructions ->
+                    [ 0L; 1L ]
+                    |> List.forall (fun initialA ->
+                        let instructions = Input.Set(Input.A, Input.Literal initialA) :: instructions
+                        let program = List.toArray instructions
+                        let multiplications, _ = interpret program 0 (Map.ofList [ Input.A, 0L ]) 0L
+                        let _, result = interpret program 0 (Map.ofList [ Input.A, 1L ]) 0L
+
+                        Primary.solve (render instructions) =
+                            Ok(Answers.both (string multiplications) (string result)))))
+            testPropertyWithConfig
+                config
+                "near-miss factor-loop back edges are rejected"
+                (Prop.forAll (Arb.fromGen factorPrograms) (fun instructions ->
+                    let malformed =
+                        instructions
+                        |> List.map (function
+                            | Input.Jump(condition, Input.Literal -13L) -> Input.Jump(condition, Input.Literal -12L)
+                            | instruction -> instruction)
+                    // Skip literal execution so a malformed loop cannot hang the rejection test.
+                    let program =
+                        Input.Jump(Input.Literal 1L, Input.Literal(int64 (malformed.Length + 1)))
+                        :: malformed
+
+                    Primary.solve (render program) = Error "unsupported nested factor-loop structure"))
+            testCase "unrepresentable forward jump terminates" (fun () ->
+                Expect.equal
+                    (Primary.solve "set h 0\njnz 1 9223372036854775807")
+                    (Ok(Answers.both "0" "0"))
+                    "a target beyond int64 still exits the program")
             testPropertyWithConfig
                 config
                 "parser preserves instructions and operand kinds"
