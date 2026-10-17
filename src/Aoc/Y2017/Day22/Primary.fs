@@ -1,5 +1,5 @@
 // approach: simulate infection using immutable 16 by 16 bitboard tiles, retaining the active tile between boundary crossings
-// cost: O(n + b + c log t) time, O(n + t) live memory for b bursts, c tile crossings and t tiles; two text passes and one parsed-cell traversal
+// cost: O(n + (i + c) log(t + 2) + b) time, O(n + t) live memory; n input cells, i initially infected cells, b bursts, c tile crossings, t tiles; two text scans, cell parsing/indexing/collection and i persistent-map insertions
 // trade: spatial locality amortizes persistent-map updates across bursts within the active tile
 module Aoc.Y2017.Day22.Primary
 
@@ -7,13 +7,13 @@ open Aoc.Solution
 open Aoc.Y2017.Day22.Input
 
 [<Struct>]
-type Node =
+type internal Node =
     | Clean
     | Weakened
     | Infected
     | Flagged
 
-module Tile =
+module internal Tile =
     [<Struct>]
     type Tile =
         {
@@ -87,6 +87,10 @@ module Tile =
         // Mask after widening: uint32 conversion of negative coordinates throws in checked builds.
         (int64 (x >>> 4) <<< 32) ||| (int64 (y >>> 4) &&& 0xffffffffL)
 
+    // Friend-assembly tests cannot expand internal inline functions in optimized builds.
+    let read x y tile = get x y tile
+    let write x y state tile = set x y state tile
+
 [<Struct>]
 type private Mode =
     | Basic
@@ -145,9 +149,11 @@ let internal solveWith basic evolved : Solver =
             let tiles =
                 [
                     for y, row in List.indexed rows do
+                        let centreX = row.Length / 2
+
                         for x, node in List.indexed row do
                             if node = Input.Infected then
-                                yield x - row.Length / 2, y - centreY
+                                yield x - centreX, y - centreY
                 ]
                 |> List.fold
                     (fun tiles (x, y) ->

@@ -14,11 +14,41 @@ let private nodeAt cell =
     | 2 -> Primary.Infected
     | _ -> Primary.Flagged
 
+let private inputs =
+    gen {
+        let! horizontal = Gen.choose (0, 3)
+        let! vertical = Gen.choose (0, 3)
+        let width = horizontal * 2 + 1
+        let height = vertical * 2 + 1
+
+        let! cells =
+            Gen.listOfLength (width * height) (Gen.elements [ Input.Clean; Input.Infected ])
+
+        let rows = cells |> List.chunkBySize width
+        let! bursts = Gen.choose (0, 2000)
+
+        let text =
+            rows
+            |> List.map (
+                List.map (function
+                    | Input.Clean -> "."
+                    | Input.Infected -> "#")
+                >> String.concat ""
+            )
+            |> String.concat "\n"
+
+        return text, rows, bursts
+    }
+
 [<Tests>]
 let tests =
     testList
         "Y2017.Day22"
         [
+            testProperty
+                "parser preserves generated rectangular rows and cells"
+                (Prop.forAll (Arb.fromGen inputs) (fun (text, rows, _) ->
+                    Input.parse text = Ok(Input.InfectionMap rows)))
             testCase "parser preserves rectangular row and cell order" (fun () ->
                 // A 5-column, 3-row map has a unique centre; CRLF is only a line separator.
                 let actual =
@@ -59,53 +89,34 @@ let tileTests =
                         Expect.equal signedLow (int64 (y >>> 4)) "packed y"
 
                         for state in nodes do
-                            let tile = Primary.Tile.set x y state Primary.Tile.empty
-                            Expect.equal (Primary.Tile.get x y tile) state "written state"
-                            Expect.equal (Primary.Tile.get (x + 1) y tile) Primary.Clean "adjacent cell")
+                            let tile = Primary.Tile.write x y state Primary.Tile.empty
+                            Expect.equal (Primary.Tile.read x y tile) state "written state"
+                            Expect.equal (Primary.Tile.read (x + 1) y tile) Primary.Clean "adjacent cell")
             testCase "every cell preserves every other cell and old versions" (fun () ->
                 let filled =
                     [ 0..255 ]
                     |> List.fold
-                        (fun tile cell -> Primary.Tile.set cell (cell >>> 4) (nodeAt cell) tile)
+                        (fun tile cell -> Primary.Tile.write cell (cell >>> 4) (nodeAt cell) tile)
                         Primary.Tile.empty
 
                 for cell in 0..255 do
                     for state in nodes do
-                        let updated = Primary.Tile.set cell (cell >>> 4) state filled
+                        let updated = Primary.Tile.write cell (cell >>> 4) state filled
 
                         for other in 0..255 do
                             Expect.equal
-                                (Primary.Tile.get other (other >>> 4) updated)
+                                (Primary.Tile.read other (other >>> 4) updated)
                                 (if cell = other then state else nodeAt other)
                                 "independent cell"
 
-                        Expect.equal (Primary.Tile.get cell (cell >>> 4) filled) (nodeAt cell) "persistent old tile")
+                        Expect.equal (Primary.Tile.read cell (cell >>> 4) filled) (nodeAt cell) "persistent old tile")
             testPropertyWithConfig
                 { FsCheckConfig.defaultConfig with
                     maxTest = 40
                     endSize = 8
                 }
                 "mutable agrees on small valid grids and bursts"
-                (let inputs =
-                    gen {
-                        let! radius = FsCheck.FSharp.Gen.choose (0, 3)
-                        let width = radius * 2 + 1
-
-                        let! cells =
-                            FsCheck.FSharp.Gen.arrayOfLength (width * width) (FsCheck.FSharp.Gen.elements [ '.'; '#' ])
-
-                        let! bursts = FsCheck.FSharp.Gen.choose (0, 2000)
-
-                        let text =
-                            cells
-                            |> Array.chunkBySize width
-                            |> Array.map System.String
-                            |> String.concat "\n"
-
-                        return text, bursts
-                    }
-
-                 FsCheck.FSharp.Prop.forAll (FsCheck.FSharp.Arb.fromGen inputs) (fun (text, bursts) ->
-                     Primary.solveWith bursts bursts text = Mutable.solveWith bursts bursts text))
+                (Prop.forAll (Arb.fromGen inputs) (fun (text, _, bursts) ->
+                    Primary.solveWith bursts bursts text = Mutable.solveWith bursts bursts text))
             testProperty "unknown cells return Error" ((+) "x" >> Primary.solve >> Result.isError)
         ]
